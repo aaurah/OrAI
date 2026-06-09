@@ -2,9 +2,9 @@
 
 # compiled output
 tmp
+dist
 # dist intentionally tracked so production server can serve pre-built assets
 !artifacts/cloud-ide/dist
-dist
 out-tsc
 *.tsbuildinfo
 .expo
