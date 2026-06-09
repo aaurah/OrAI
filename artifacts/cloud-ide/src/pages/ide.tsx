@@ -155,7 +155,13 @@ export default function IDE() {
   const [newFileName, setNewFileName]       = useState("");
   const [newFileType, setNewFileType]       = useState<"file" | "directory">("file");
   const [showDeploy, setShowDeploy]         = useState(false);
-  const [aiMessages, setAiMessages]         = useState<AiMessage[]>([]);
+  const CHAT_KEY = `ide_chat_${projectId}`;
+  const [aiMessages, setAiMessages]         = useState<AiMessage[]>(() => {
+    try {
+      const saved = localStorage.getItem(`ide_chat_${projectId}`);
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
   const [aiInput, setAiInput]               = useState("");
   const [mobileTab, setMobileTab]           = useState<MobileTab>("files");
   const chatEndRef                          = useRef<HTMLDivElement>(null);
@@ -191,6 +197,13 @@ export default function IDE() {
       setIsDirty(false);
     }
   }, [selectedFile?.id]);
+
+  // Persist chat to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem(CHAT_KEY, JSON.stringify(aiMessages));
+    } catch { /* storage full — ignore */ }
+  }, [aiMessages]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -370,9 +383,20 @@ export default function IDE() {
         <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
           <Sparkles size={12} className="text-primary" /> AI Agent
         </span>
-        <button onClick={() => setShowAI(false)} className="text-muted-foreground hover:text-foreground hidden md:block">
-          <X size={14} />
-        </button>
+        <div className="flex items-center gap-1">
+          {aiMessages.length > 0 && (
+            <button
+              title="Clear chat"
+              onClick={() => { setAiMessages([]); localStorage.removeItem(CHAT_KEY); }}
+              className="text-xs text-muted-foreground hover:text-destructive px-1.5 py-0.5 rounded transition-colors"
+            >
+              Clear
+            </button>
+          )}
+          <button onClick={() => setShowAI(false)} className="text-muted-foreground hover:text-foreground hidden md:block p-0.5">
+            <X size={14} />
+          </button>
+        </div>
       </div>
 
       {/* Messages */}
