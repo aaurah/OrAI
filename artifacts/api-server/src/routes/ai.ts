@@ -141,63 +141,66 @@ Rules:
     // ── Execute actions ──────────────────────────────────────────────────────
     const executedActions: ExecutedAction[] = [];
 
-    for (const action of aiResult.actions) {
-      try {
-        if (action.type === "create_file") {
-          const existing = existingFiles.find(f => f.name === action.filename);
-          if (existing) {
-            await db
-              .update(filesTable)
-              .set({ content: action.content, updatedAt: new Date() })
-              .where(eq(filesTable.id, existing.id));
-            executedActions.push({ type: "edited", filename: action.filename, fileId: existing.id });
-          } else {
-            const lang = action.language ?? inferLanguage(action.filename);
-            const [created] = await db
-              .insert(filesTable)
-              .values({
-                projectId,
-                name:     action.filename,
-                path:     `/${action.filename}`,
-                content:  action.content,
-                type:     "file",
-                language: lang,
-              })
-              .returning();
-            executedActions.push({ type: "created", filename: action.filename, fileId: created.id });
-          }
+    // Run all file actions in a single transaction so a partial failure doesn't
+    // leave the project in a half-modified state.
+    await db.transaction(async (tx) => {
+      for (const action of aiResult.actions) {
+        try {
+          if (action.type === "create_file") {
+            const existing = existingFiles.find(f => f.name === action.filename);
+            if (existing) {
+              await tx
+                .update(filesTable)
+                .set({ content: action.content, updatedAt: new Date() })
+                .where(eq(filesTable.id, existing.id));
+              executedActions.push({ type: "edited", filename: action.filename, fileId: existing.id });
+            } else {
+              const lang = action.language ?? inferLanguage(action.filename);
+              const [created] = await tx
+                .insert(filesTable)
+                .values({
+                  projectId,
+                  name:     action.filename,
+                  path:     `/${action.filename}`,
+                  content:  action.content,
+                  type:     "file",
+                  language: lang,
+                })
+                .returning();
+              executedActions.push({ type: "created", filename: action.filename, fileId: created.id });
+            }
 
-        } else if (action.type === "edit_file") {
-          const target = existingFiles.find(f => f.name === action.filename);
-          if (!target) {
-            // Create it instead
-            const lang = inferLanguage(action.filename);
-            const [created] = await db
-              .insert(filesTable)
-              .values({ projectId, name: action.filename, path: `/${action.filename}`, content: action.content, type: "file", language: lang })
-              .returning();
-            executedActions.push({ type: "created", filename: action.filename, fileId: created.id });
-          } else {
-            await db
-              .update(filesTable)
-              .set({ content: action.content, updatedAt: new Date() })
-              .where(eq(filesTable.id, target.id));
-            executedActions.push({ type: "edited", filename: action.filename, fileId: target.id });
-          }
+          } else if (action.type === "edit_file") {
+            const target = existingFiles.find(f => f.name === action.filename);
+            if (!target) {
+              const lang = inferLanguage(action.filename);
+              const [created] = await tx
+                .insert(filesTable)
+                .values({ projectId, name: action.filename, path: `/${action.filename}`, content: action.content, type: "file", language: lang })
+                .returning();
+              executedActions.push({ type: "created", filename: action.filename, fileId: created.id });
+            } else {
+              await tx
+                .update(filesTable)
+                .set({ content: action.content, updatedAt: new Date() })
+                .where(eq(filesTable.id, target.id));
+              executedActions.push({ type: "edited", filename: action.filename, fileId: target.id });
+            }
 
-        } else if (action.type === "delete_file") {
-          const target = existingFiles.find(f => f.name === action.filename);
-          if (target) {
-            await db.delete(filesTable).where(eq(filesTable.id, target.id));
-            executedActions.push({ type: "deleted", filename: action.filename });
-          } else {
-            executedActions.push({ type: "error", filename: action.filename, message: "File not found" });
+          } else if (action.type === "delete_file") {
+            const target = existingFiles.find(f => f.name === action.filename);
+            if (target) {
+              await tx.delete(filesTable).where(eq(filesTable.id, target.id));
+              executedActions.push({ type: "deleted", filename: action.filename });
+            } else {
+              executedActions.push({ type: "error", filename: action.filename, message: "File not found" });
+            }
           }
+        } catch (err) {
+          executedActions.push({ type: "error", filename: (action as any).filename ?? "?", message: String(err) });
         }
-      } catch (err) {
-        executedActions.push({ type: "error", filename: (action as any).filename ?? "?", message: String(err) });
       }
-    }
+    });
 
     return res.json({
       reply:           aiResult.reply,
