@@ -223,11 +223,17 @@ export default function IDE() {
     }
   }, [selectedFile?.id]);
 
-  // Persist chat to localStorage
+  // Persist chat to localStorage — cap at last 60 messages to avoid 5MB limit
   useEffect(() => {
     try {
-      localStorage.setItem(CHAT_KEY, JSON.stringify(aiMessages));
-    } catch { /* storage full — ignore */ }
+      const toSave = aiMessages.length > 60 ? aiMessages.slice(-60) : aiMessages;
+      localStorage.setItem(CHAT_KEY, JSON.stringify(toSave));
+    } catch {
+      // Storage full — prune aggressively to just the last 10 messages
+      try {
+        localStorage.setItem(CHAT_KEY, JSON.stringify(aiMessages.slice(-10)));
+      } catch { /* give up gracefully */ }
+    }
   }, [aiMessages]);
 
   useEffect(() => {

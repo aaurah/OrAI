@@ -5,11 +5,11 @@ const router = Router();
 const GH_API = "https://api.github.com";
 
 // ── Token helper ─────────────────────────────────────────────────────────────
+// Only accept the client-provided token from the request header.
+// Never fall back to the server's GITHUB_TOKEN for user-facing requests — that
+// would allow any caller to use the server's own credentials.
 function getToken(req: any): string {
-  const header = req.headers["x-github-token"] as string | undefined;
-  const env    = process.env.GITHUB_TOKEN ?? "";
-  const token  = header || env;
-  return token;
+  return (req.headers["x-github-token"] as string | undefined) ?? "";
 }
 
 async function ghFetch(

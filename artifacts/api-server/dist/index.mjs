@@ -56472,6 +56472,7 @@ router2.get("/projects/:id/preview", async (req, res) => {
       }
       const readmeFile = fileMap.get("README.md") ?? fileMap.get("readme.md");
       const readmeSnippet = readmeFile?.content ? readmeFile.content.slice(0, 800).replace(/</g, "&lt;").replace(/>/g, "&gt;") : null;
+      const esc2 = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
       const sortedFiles = files.sort((a, b) => a.name.localeCompare(b.name)).slice(0, 30);
       const fileRows = sortedFiles.map((f) => {
         const ext = f.name.split(".").pop() ?? "";
@@ -56495,12 +56496,12 @@ router2.get("/projects/:id/preview", async (req, res) => {
         const indent = isDeep ? "  " : "";
         return `<div class="file-row">
           <span class="file-dot" style="background:${color}"></span>
-          <span class="file-name" style="${isDeep ? "color:#8b949e;font-size:11px" : ""}">${indent}${f.name}</span>
+          <span class="file-name" style="${isDeep ? "color:#8b949e;font-size:11px" : ""}">${indent}${esc2(f.name)}</span>
           ${f.content ? `<span class="file-size">${Math.ceil(f.content.length / 1024)}KB</span>` : ""}
         </div>`;
       }).join("");
-      const projectName = pkgJson?.name ?? `Project #${projectId}`;
-      const description = pkgJson?.description ?? "Imported project";
+      const projectName = esc2(pkgJson?.name ?? `Project #${projectId}`);
+      const description = esc2(pkgJson?.description ?? "Imported project");
       res.status(200).setHeader("Content-Type", "text/html; charset=utf-8").send(`<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -56555,7 +56556,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-seri
     <div class="section-title">Scripts (package.json)</div>
     <div class="scripts">
       ${Object.entries(pkgJson.scripts ?? {}).slice(0, 6).map(
-        ([k, v]) => `<div class="script-row"><span class="script-name">${k}</span><span class="script-cmd">${String(v)}</span></div>`
+        ([k, v]) => `<div class="script-row"><span class="script-name">${esc2(k)}</span><span class="script-cmd">${esc2(String(v))}</span></div>`
       ).join("")}
     </div>
   </div>` : ""}
@@ -56564,9 +56565,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-seri
   <div class="section">
     <div class="section-title">Package Info</div>
     <div class="meta-grid">
-      ${pkgJson.version ? `<div class="meta-item"><div class="meta-label">Version</div><div class="meta-value">${pkgJson.version}</div></div>` : ""}
-      ${pkgJson.license ? `<div class="meta-item"><div class="meta-label">License</div><div class="meta-value">${pkgJson.license}</div></div>` : ""}
-      ${pkgJson.engines?.node ? `<div class="meta-item"><div class="meta-label">Node</div><div class="meta-value">${pkgJson.engines.node}</div></div>` : ""}
+      ${pkgJson.version ? `<div class="meta-item"><div class="meta-label">Version</div><div class="meta-value">${esc2(pkgJson.version)}</div></div>` : ""}
+      ${pkgJson.license ? `<div class="meta-item"><div class="meta-label">License</div><div class="meta-value">${esc2(pkgJson.license)}</div></div>` : ""}
+      ${pkgJson.engines?.node ? `<div class="meta-item"><div class="meta-label">Node</div><div class="meta-value">${esc2(pkgJson.engines.node)}</div></div>` : ""}
       ${Object.keys(pkgJson.dependencies ?? {}).length ? `<div class="meta-item"><div class="meta-label">Dependencies</div><div class="meta-value">${Object.keys(pkgJson.dependencies).length}</div></div>` : ""}
     </div>
   </div>` : ""}
@@ -57059,7 +57060,8 @@ Rules:
         aiResult = generateAgenticFallback(message, existingFiles, currentFile ?? null);
       } else {
         const data = await response.json();
-        const raw = data.choices[0]?.message?.content ?? "{}";
+        let raw = data.choices[0]?.message?.content ?? "{}";
+        raw = raw.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
         try {
           const parsed = JSON.parse(raw);
           aiResult = {
@@ -58599,10 +58601,7 @@ var import_express8 = __toESM(require_express2(), 1);
 var router8 = (0, import_express8.Router)();
 var GH_API = "https://api.github.com";
 function getToken(req) {
-  const header = req.headers["x-github-token"];
-  const env = process.env.GITHUB_TOKEN ?? "";
-  const token = header || env;
-  return token;
+  return req.headers["x-github-token"] ?? "";
 }
 async function ghFetch(path, token, options = {}) {
   const res = await fetch(`${GH_API}${path}`, {

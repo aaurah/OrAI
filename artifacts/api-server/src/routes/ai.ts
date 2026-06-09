@@ -123,7 +123,9 @@ Rules:
         aiResult = generateAgenticFallback(message, existingFiles, currentFile ?? null);
       } else {
         const data = (await response.json()) as { choices: Array<{ message: { content: string } }> };
-        const raw = data.choices[0]?.message?.content ?? "{}";
+        let raw = data.choices[0]?.message?.content ?? "{}";
+        // Strip ```json ... ``` or ``` ... ``` fences some models add despite json_object mode
+        raw = raw.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
         try {
           const parsed = JSON.parse(raw);
           aiResult = {
