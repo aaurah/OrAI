@@ -19,7 +19,13 @@ router.get("/projects/:id/files", async (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: "Invalid id" });
   try {
     const files = await db.select().from(filesTable).where(eq(filesTable.projectId, parsed.data.id));
-    res.json(files.map(serializeFile));
+    // Deduplicate by name — keep the highest-id (newest) file for each name
+    const seen = new Map<string, typeof files[0]>();
+    for (const f of files) {
+      const existing = seen.get(f.name);
+      if (!existing || f.id > existing.id) seen.set(f.name, f);
+    }
+    res.json([...seen.values()].map(serializeFile));
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch files" });
   }
