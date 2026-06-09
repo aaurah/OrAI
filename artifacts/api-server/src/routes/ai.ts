@@ -124,19 +124,28 @@ Rules:
     for (const action of aiResult.actions) {
       try {
         if (action.type === "create_file") {
-          const lang = action.language ?? inferLanguage(action.filename);
-          const [created] = await db
-            .insert(filesTable)
-            .values({
-              projectId,
-              name:     action.filename,
-              path:     `/${action.filename}`,
-              content:  action.content,
-              type:     "file",
-              language: lang,
-            })
-            .returning();
-          executedActions.push({ type: "created", filename: action.filename, fileId: created.id });
+          const existing = existingFiles.find(f => f.name === action.filename);
+          if (existing) {
+            await db
+              .update(filesTable)
+              .set({ content: action.content, updatedAt: new Date() })
+              .where(eq(filesTable.id, existing.id));
+            executedActions.push({ type: "edited", filename: action.filename, fileId: existing.id });
+          } else {
+            const lang = action.language ?? inferLanguage(action.filename);
+            const [created] = await db
+              .insert(filesTable)
+              .values({
+                projectId,
+                name:     action.filename,
+                path:     `/${action.filename}`,
+                content:  action.content,
+                type:     "file",
+                language: lang,
+              })
+              .returning();
+            executedActions.push({ type: "created", filename: action.filename, fileId: created.id });
+          }
 
         } else if (action.type === "edit_file") {
           const target = existingFiles.find(f => f.name === action.filename);

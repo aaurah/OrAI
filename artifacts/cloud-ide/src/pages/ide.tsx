@@ -321,9 +321,17 @@ export default function IDE() {
   }, [projectId]);
 
   function handleAiSend() {
-    if (!aiInput.trim() || aiChat.isPending) return;
-    const msg = aiInput.trim();
-    sendAiMessage(msg);
+    if ((!aiInput.trim() && !attachedImage) || aiChat.isPending) return;
+    sendAiMessage(aiInput.trim(), attachedImage?.dataUrl);
+  }
+
+  function handleImageAttach(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setAttachedImage({ dataUrl: reader.result as string, name: file.name });
+    reader.readAsDataURL(file);
+    e.target.value = "";
   }
 
   function selectFile(id: number) {
@@ -454,6 +462,9 @@ export default function IDE() {
                 ? "bg-primary text-primary-foreground"
                 : "bg-muted text-foreground"
             }`}>
+              {msg.imageUrl && (
+                <img src={msg.imageUrl} alt="attachment" className="rounded-md mb-1.5 max-w-[200px] max-h-[150px] object-cover" />
+              )}
               <p className="whitespace-pre-wrap break-words leading-relaxed">{msg.content}</p>
               {msg.actions && msg.actions.length > 0 && (
                 <ActionChips actions={msg.actions} onOpen={openFileById} />
@@ -475,7 +486,35 @@ export default function IDE() {
 
       {/* Input */}
       <div className="p-2 border-t border-border shrink-0">
+        {attachedImage && (
+          <div className="flex items-center gap-1.5 mb-1.5 bg-muted/50 rounded-md px-2 py-1">
+            <img src={attachedImage.dataUrl} alt="preview" className="w-8 h-8 rounded object-cover shrink-0" />
+            <span className="text-[10px] text-muted-foreground truncate flex-1">{attachedImage.name}</span>
+            <button
+              onClick={() => setAttachedImage(null)}
+              className="text-muted-foreground hover:text-destructive shrink-0"
+            >
+              <X size={12} />
+            </button>
+          </div>
+        )}
         <div className="flex gap-1.5">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleImageAttach}
+          />
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-9 w-9 shrink-0 text-muted-foreground hover:text-foreground"
+            onClick={() => fileInputRef.current?.click()}
+            title="Attach image"
+          >
+            <Paperclip size={14} />
+          </Button>
           <Input
             className="text-xs h-9 bg-background"
             placeholder="Create, edit, delete files…"
@@ -487,7 +526,7 @@ export default function IDE() {
             size="icon"
             className="h-9 w-9 shrink-0"
             onClick={handleAiSend}
-            disabled={aiChat.isPending || !aiInput.trim()}
+            disabled={aiChat.isPending || (!aiInput.trim() && !attachedImage)}
           >
             <SendHorizontal size={13} />
           </Button>
