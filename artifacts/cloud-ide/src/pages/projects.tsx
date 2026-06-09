@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Plus, Search, FolderOpen, Trash2, Globe, Lock, Code2, MoreVertical } from "lucide-react";
+import { Plus, Search, FolderOpen, Trash2, Globe, Lock, Code2, MoreVertical, Eye, EyeOff } from "lucide-react";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,46 +25,74 @@ import {
 import {
   useListProjects,
   useDeleteProject,
+  useUpdateProject,
   getListProjectsQueryKey,
   getGetProjectStatsQueryKey,
   getGetRecentProjectsQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/hooks/use-toast";
 
 const LANGUAGE_COLORS: Record<string, string> = {
   javascript: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
   typescript: "bg-blue-500/20 text-blue-400 border-blue-500/30",
-  python: "bg-green-500/20 text-green-400 border-green-500/30",
-  rust: "bg-orange-500/20 text-orange-400 border-orange-500/30",
-  go: "bg-cyan-500/20 text-cyan-400 border-cyan-500/30",
-  html: "bg-red-500/20 text-red-400 border-red-500/30",
+  python:     "bg-green-500/20 text-green-400 border-green-500/30",
+  rust:       "bg-orange-500/20 text-orange-400 border-orange-500/30",
+  go:         "bg-cyan-500/20 text-cyan-400 border-cyan-500/30",
+  html:       "bg-red-500/20 text-red-400 border-red-500/30",
 };
 
 function formatDate(dateString: string) {
   const date = new Date(dateString);
-  const now = new Date();
-  const diff = Math.floor((now.getTime() - date.getTime()) / 1000);
-  if (diff < 60) return "just now";
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  const diff = Math.floor((Date.now() - date.getTime()) / 1000);
+  if (diff < 60)    return "just now";
+  if (diff < 3600)  return `${Math.floor(diff / 60)}m ago`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
   return `${Math.floor(diff / 86400)}d ago`;
 }
 
 export default function Projects() {
   const [, navigate] = useLocation();
+  const { toast } = useToast();
   const [search, setSearch] = useState("");
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
   const [confirmDeleteName, setConfirmDeleteName] = useState("");
   const queryClient = useQueryClient();
+
   const { data: projects, isLoading } = useListProjects();
-  const deleteMutation = useDeleteProject();
+  const deleteMutation  = useDeleteProject();
+  const updateMutation  = useUpdateProject();
 
   const filtered = (projects ?? []).filter(
     (p) =>
       p.name.toLowerCase().includes(search.toLowerCase()) ||
       p.language.toLowerCase().includes(search.toLowerCase())
   );
+
+  function invalidateAll() {
+    queryClient.invalidateQueries({ queryKey: getListProjectsQueryKey() });
+    queryClient.invalidateQueries({ queryKey: getGetProjectStatsQueryKey() });
+    queryClient.invalidateQueries({ queryKey: getGetRecentProjectsQueryKey() });
+  }
+
+  function toggleVisibility(id: number, currentlyPublic: boolean) {
+    updateMutation.mutate(
+      { id, data: { isPublic: !currentlyPublic } },
+      {
+        onSuccess: () => {
+          invalidateAll();
+          toast({
+            title: currentlyPublic ? "Project set to Private" : "Project set to Public",
+            description: currentlyPublic
+              ? "Only you can see this project."
+              : "Anyone with the link can view this project.",
+          });
+        },
+        onError: () => toast({ title: "Update failed", variant: "destructive" }),
+      }
+    );
+  }
 
   function requestDelete(id: number, name: string) {
     setConfirmDeleteId(id);
@@ -77,10 +105,10 @@ export default function Projects() {
       { id: confirmDeleteId },
       {
         onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: getListProjectsQueryKey() });
-          queryClient.invalidateQueries({ queryKey: getGetProjectStatsQueryKey() });
-          queryClient.invalidateQueries({ queryKey: getGetRecentProjectsQueryKey() });
+          invalidateAll();
+          toast({ title: "Project deleted" });
         },
+        onError: () => toast({ title: "Delete failed", variant: "destructive" }),
       }
     );
     setConfirmDeleteId(null);
@@ -128,15 +156,11 @@ export default function Projects() {
               {search ? "No projects match your search" : "No projects yet"}
             </h3>
             <p className="text-muted-foreground text-sm mb-6">
-              {search
-                ? "Try a different search term."
-                : "Create your first project to get started."}
+              {search ? "Try a different search term." : "Create your first project to get started."}
             </p>
             {!search && (
               <Link href="/projects/new">
-                <Button>
-                  <Plus size={16} className="mr-2" /> Create Project
-                </Button>
+                <Button><Plus size={16} className="mr-2" /> Create Project</Button>
               </Link>
             )}
           </div>
@@ -158,7 +182,6 @@ export default function Projects() {
                       )}
                     </div>
 
-                    {/* Always-visible ⋯ menu — works on hover AND touch */}
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button
@@ -169,18 +192,25 @@ export default function Projects() {
                           <MoreVertical size={15} />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-40">
+                      <DropdownMenuContent align="end" className="w-48">
                         <DropdownMenuItem onClick={() => navigate(`/projects/${project.id}`)}>
-                          <FolderOpen size={14} className="mr-2" />
-                          Open
+                          <FolderOpen size={14} className="mr-2" /> Open
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={() => toggleVisibility(project.id, project.isPublic)}
+                          disabled={updateMutation.isPending}
+                        >
+                          {project.isPublic
+                            ? <><EyeOff size={14} className="mr-2" /> Make Private</>
+                            : <><Eye size={14} className="mr-2" /> Make Public</>}
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
                           className="text-destructive focus:text-destructive focus:bg-destructive/10"
                           onClick={() => requestDelete(project.id, project.name)}
                         >
-                          <Trash2 size={14} className="mr-2" />
-                          Delete
+                          <Trash2 size={14} className="mr-2" /> Delete
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -191,15 +221,15 @@ export default function Projects() {
                   <div className="flex items-center gap-2 flex-wrap">
                     <span
                       className={`text-xs px-2 py-0.5 rounded border font-mono ${
-                        LANGUAGE_COLORS[project.language] ??
-                        "bg-muted text-muted-foreground border-border"
+                        LANGUAGE_COLORS[project.language] ?? "bg-muted text-muted-foreground border-border"
                       }`}
                     >
                       {project.language}
                     </span>
                     <span className="text-xs text-muted-foreground flex items-center gap-1">
-                      {project.isPublic ? <Globe size={11} /> : <Lock size={11} />}
-                      {project.isPublic ? "Public" : "Private"}
+                      {project.isPublic
+                        ? <><Globe size={11} /> Public</>
+                        : <><Lock size={11} /> Private</>}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
@@ -219,7 +249,6 @@ export default function Projects() {
         )}
       </div>
 
-      {/* Single shared AlertDialog — rendered outside the card loop */}
       <AlertDialog
         open={!!confirmDeleteId}
         onOpenChange={(open) => { if (!open) setConfirmDeleteId(null); }}

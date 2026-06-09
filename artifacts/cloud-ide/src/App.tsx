@@ -12,6 +12,7 @@ import IDE from "@/pages/ide";
 import Deployments from "@/pages/deployments";
 import DeploymentDetail from "@/pages/deployment-detail";
 import Settings from "@/pages/settings";
+import Admin from "@/pages/admin";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -32,6 +33,7 @@ function Router() {
       <Route path="/deployments" component={Deployments} />
       <Route path="/deployments/:id" component={DeploymentDetail} />
       <Route path="/settings" component={Settings} />
+      <Route path="/admin" component={Admin} />
       <Route component={NotFound} />
     </Switch>
   );
