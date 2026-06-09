@@ -73,18 +73,6 @@ router.post("/projects", async (req, res) => {
       status: "active",
     }).returning();
 
-    const starterContent = getStarterContent(parsed.data.language);
-    if (starterContent) {
-      await db.insert(filesTable).values({
-        projectId: project.id,
-        name: starterContent.name,
-        path: `/${starterContent.name}`,
-        content: starterContent.content,
-        type: "file",
-        language: parsed.data.language,
-      });
-    }
-
     res.status(201).json(serializeProject(project));
   } catch (err) {
     res.status(500).json({ error: "Failed to create project" });
@@ -255,16 +243,5 @@ function serializeProject(p: typeof projectsTable.$inferSelect) {
   };
 }
 
-function getStarterContent(language: string): { name: string; content: string } | null {
-  const starters: Record<string, { name: string; content: string }> = {
-    javascript: { name: "index.js", content: `// Welcome to your new JavaScript project!\nconsole.log("Hello, world!");\n` },
-    typescript: { name: "index.ts", content: `// Welcome to your new TypeScript project!\nconst greeting: string = "Hello, world!";\nconsole.log(greeting);\n` },
-    python: { name: "main.py", content: `# Welcome to your new Python project!\nprint("Hello, world!")\n` },
-    html: { name: "index.html", content: `<!DOCTYPE html>\n<html lang="en">\n<head>\n  <meta charset="UTF-8">\n  <title>My Project</title>\n</head>\n<body>\n  <h1>Hello, world!</h1>\n</body>\n</html>\n` },
-    rust: { name: "main.rs", content: `fn main() {\n    println!("Hello, world!");\n}\n` },
-    go: { name: "main.go", content: `package main\n\nimport "fmt"\n\nfunc main() {\n    fmt.Println("Hello, world!")\n}\n` },
-  };
-  return starters[language] ?? { name: "README.md", content: `# My Project\n\nWelcome to your new project!\n` };
-}
 
 export default router;
