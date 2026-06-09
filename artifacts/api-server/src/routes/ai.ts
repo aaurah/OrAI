@@ -31,7 +31,7 @@ router.post("/projects/:id/ai/chat", async (req, res) => {
   if (!bodyParsed.success) return res.status(400).json({ error: bodyParsed.error.message });
 
   const projectId = paramsParsed.data.id;
-  const { message, context, currentFile } = bodyParsed.data;
+  const { message, context, currentFile, imageUrl } = bodyParsed.data as any;
 
   // Fetch current project files so the AI knows what exists
   const existingFiles = await db
@@ -86,7 +86,15 @@ Rules:
           model: "gpt-4o",
           messages: [
             { role: "system", content: systemPrompt },
-            { role: "user",   content: message },
+            {
+              role: "user",
+              content: imageUrl
+                ? [
+                    { type: "text", text: message },
+                    { type: "image_url", image_url: { url: imageUrl, detail: "high" } },
+                  ]
+                : message,
+            },
           ],
           response_format: { type: "json_object" },
           max_tokens: 4096,

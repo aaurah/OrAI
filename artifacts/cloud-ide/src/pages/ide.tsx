@@ -5,7 +5,7 @@ import {
   Save, Rocket, X, SendHorizontal,
   LayoutPanelLeft, Code2, Loader2, FolderOpen,
   FilePlus, FilePen, FileX, AlertCircle, Sparkles,
-  Monitor, RefreshCw,
+  Monitor, RefreshCw, Paperclip, ImageIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,6 +40,7 @@ type AiMessage = {
   role: "user" | "assistant";
   content: string;
   actions?: ExecutedAction[];
+  imageUrl?: string;
 };
 
 type MobileTab = "files" | "editor" | "ai" | "preview";
@@ -164,7 +165,9 @@ export default function IDE() {
   });
   const [aiInput, setAiInput]               = useState("");
   const [mobileTab, setMobileTab]           = useState<MobileTab>("files");
+  const [attachedImage, setAttachedImage]   = useState<{ dataUrl: string; name: string } | null>(null);
   const chatEndRef                          = useRef<HTMLDivElement>(null);
+  const fileInputRef                        = useRef<HTMLInputElement>(null);
   const [MonacoEditor, setMonacoEditor]     = useState<any>(null);
 
   const { data: selectedFile } = useGetFile(projectId, selectedFileId ?? 0, {
@@ -258,18 +261,21 @@ export default function IDE() {
     setMobileTab("editor");
   }
 
-  function sendAiMessage(msg: string) {
-    if (!msg.trim() || aiChat.isPending) return;
+  function sendAiMessage(msg: string, imgUrl?: string) {
+    if (!msg.trim() && !imgUrl || aiChat.isPending) return;
+    const finalMsg = msg.trim() || (imgUrl ? "Describe what you see in this image and suggest what to build." : "");
     setAiInput("");
-    setAiMessages(prev => [...prev, { role: "user", content: msg }]);
+    setAttachedImage(null);
+    setAiMessages(prev => [...prev, { role: "user", content: finalMsg, imageUrl: imgUrl }]);
 
     aiChat.mutate({
       id: projectId,
       data: {
-        message: msg,
+        message: finalMsg,
         context: selectedFile?.content ?? null,
         currentFile: selectedFile?.name ?? null,
-      },
+        imageUrl: imgUrl ?? null,
+      } as any,
     }, {
       onSuccess: (data) => {
         const actions: ExecutedAction[] = (data as any).actions ?? [];
