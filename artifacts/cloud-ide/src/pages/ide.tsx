@@ -2,9 +2,10 @@ import { useState, useEffect, useRef } from "react";
 import { useParams, Link } from "wouter";
 import {
   File as FileIcon, Folder, Plus, Trash2,
-  Save, Rocket, MessageSquare, X, SendHorizontal,
-  LayoutPanelLeft, Code2, Loader2, FolderOpen, Bot,
-  CheckCircle2, FilePlus, FilePen, FileX, AlertCircle, Sparkles,
+  Save, Rocket, X, SendHorizontal,
+  LayoutPanelLeft, Code2, Loader2, FolderOpen,
+  FilePlus, FilePen, FileX, AlertCircle, Sparkles,
+  Monitor, RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,7 +42,7 @@ type AiMessage = {
   actions?: ExecutedAction[];
 };
 
-type MobileTab = "files" | "editor" | "ai";
+type MobileTab = "files" | "editor" | "ai" | "preview";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -148,6 +149,8 @@ export default function IDE() {
   const [editorContent, setEditorContent]   = useState("");
   const [isDirty, setIsDirty]               = useState(false);
   const [showAI, setShowAI]                 = useState(true);
+  const [showPreview, setShowPreview]       = useState(false);
+  const [previewKey, setPreviewKey]         = useState(0);
   const [showNewFile, setShowNewFile]       = useState(false);
   const [newFileName, setNewFileName]       = useState("");
   const [newFileType, setNewFileType]       = useState<"file" | "directory">("file");
@@ -298,6 +301,11 @@ export default function IDE() {
 
   const currentLang = selectedFile ? getLanguage(selectedFile.name) : "plaintext";
 
+  // Refresh preview when AI creates/edits files
+  useEffect(() => {
+    setPreviewKey(k => k + 1);
+  }, [files?.length]);
+
   // ── Panels ─────────────────────────────────────────────────────────────────
 
   const editorPanel = (
@@ -445,6 +453,47 @@ export default function IDE() {
     </div>
   );
 
+  const previewPanel = (
+    <div className="flex flex-col h-full bg-card overflow-hidden">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0">
+        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+          <Monitor size={12} className="text-primary" /> Preview
+        </span>
+        <div className="flex items-center gap-1">
+          <button
+            title="Refresh preview"
+            onClick={() => setPreviewKey(k => k + 1)}
+            className="p-1 text-muted-foreground hover:text-foreground rounded transition-colors"
+          >
+            <RefreshCw size={12} />
+          </button>
+          <button
+            title="Open in new tab"
+            onClick={() => window.open(`/api/projects/${projectId}/preview`, "_blank")}
+            className="p-1 text-muted-foreground hover:text-foreground rounded transition-colors hidden md:block"
+          >
+            <X size={12} className="rotate-45" />
+          </button>
+          <button
+            onClick={() => setShowPreview(false)}
+            className="p-1 text-muted-foreground hover:text-foreground rounded transition-colors hidden md:block"
+          >
+            <X size={12} />
+          </button>
+        </div>
+      </div>
+      <div className="flex-1 overflow-hidden bg-white">
+        <iframe
+          key={previewKey}
+          src={`/api/projects/${projectId}/preview`}
+          className="w-full h-full border-0"
+          sandbox="allow-scripts allow-same-origin allow-forms allow-modals"
+          title="Project Preview"
+        />
+      </div>
+    </div>
+  );
+
   const fileTreePanel = (
     <div className="flex flex-col h-full bg-sidebar overflow-hidden">
       <div className="flex items-center justify-between px-3 py-2 border-b border-sidebar-border shrink-0">
@@ -489,6 +538,14 @@ export default function IDE() {
               {updateFile.isPending ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
               <span className="hidden sm:inline">Save</span>
             </Button>
+            <Button
+              variant="ghost" size="sm"
+              className={`h-7 px-2 text-xs gap-1 hidden md:flex ${showPreview ? "bg-primary/10 text-primary" : ""}`}
+              onClick={() => setShowPreview(!showPreview)}
+            >
+              <Monitor size={12} className={showPreview ? "text-primary" : ""} />
+              Preview
+            </Button>
             <Button variant="ghost" size="sm" className="h-7 px-2 text-xs gap-1 hidden md:flex" onClick={() => setShowAI(!showAI)}>
               <Sparkles size={12} className="text-primary" />
               AI
@@ -504,6 +561,7 @@ export default function IDE() {
         <div className="hidden md:flex flex-1 min-h-0 overflow-hidden">
           <div className="w-52 border-r border-border shrink-0">{fileTreePanel}</div>
           <div className="flex-1 min-w-0 flex flex-col overflow-hidden">{editorPanel}</div>
+          {showPreview && <div className="w-96 border-l border-border shrink-0">{previewPanel}</div>}
           {showAI && <div className="w-80 border-l border-border shrink-0">{aiPanel}</div>}
         </div>
 
@@ -511,28 +569,30 @@ export default function IDE() {
         <div className="flex md:hidden flex-col flex-1 min-h-0 overflow-hidden">
           <div className="flex border-b border-border bg-card shrink-0">
             {([
-              { key: "files",  label: "Files",  icon: FolderOpen },
-              { key: "editor", label: "Editor", icon: Code2 },
-              { key: "ai",     label: "AI",     icon: Sparkles },
+              { key: "files",   label: "Files",   icon: FolderOpen },
+              { key: "editor",  label: "Editor",  icon: Code2 },
+              { key: "preview", label: "Preview", icon: Monitor },
+              { key: "ai",      label: "AI",      icon: Sparkles },
             ] as const).map(({ key, label, icon: Icon }) => (
               <button
                 key={key}
-                onClick={() => setMobileTab(key)}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium border-b-2 transition-colors ${
+                onClick={() => { setMobileTab(key); if (key === "preview") setPreviewKey(k => k + 1); }}
+                className={`flex-1 flex items-center justify-center gap-1 py-2.5 text-xs font-medium border-b-2 transition-colors ${
                   mobileTab === key
                     ? "border-primary text-foreground"
                     : "border-transparent text-muted-foreground"
                 }`}
               >
-                <Icon size={13} className={key === "ai" && mobileTab !== "ai" ? "text-primary" : ""} />
-                {label}
+                <Icon size={12} className={(key === "ai" || key === "preview") && mobileTab !== key ? "text-primary" : ""} />
+                <span className="hidden xs:inline">{label}</span>
               </button>
             ))}
           </div>
           <div className="flex-1 min-h-0 overflow-hidden">
-            {mobileTab === "files"  && fileTreePanel}
-            {mobileTab === "editor" && <div className="h-full overflow-hidden">{editorPanel}</div>}
-            {mobileTab === "ai"     && aiPanel}
+            {mobileTab === "files"   && fileTreePanel}
+            {mobileTab === "editor"  && <div className="h-full overflow-hidden">{editorPanel}</div>}
+            {mobileTab === "preview" && <div className="h-full overflow-hidden">{previewPanel}</div>}
+            {mobileTab === "ai"      && aiPanel}
           </div>
         </div>
       </div>

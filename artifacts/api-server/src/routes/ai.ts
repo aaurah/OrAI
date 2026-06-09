@@ -194,17 +194,57 @@ function generateAgenticFallback(
   existingFiles: Array<{ id: number; name: string; content?: string | null }>,
   currentFile: string | null,
 ): { reply: string; actions: FileAction[] } {
-  const msg = message.toLowerCase();
+  const msg = message.toLowerCase().trim();
+
+  // ── Greeting / health check ────────────────────────────────────────────────
+  if (
+    /^(hi|hello|hey|yo|sup|howdy|hola|test|ping)[\s!?.,]*$/.test(msg) ||
+    /are you (working|there|alive|ok|online|ready)/.test(msg) ||
+    msg === "test" || msg === "?" || /^how are you/.test(msg)
+  ) {
+    return {
+      reply: `Yes, I'm working! 👋 I'm your agentic AI coding assistant — I can create, edit, and delete files in your project.\n\nTry asking me to:\n• "Create a weather app with 7 day forecast"\n• "Build a todo list app"\n• "Make a portfolio website"\n• "Create a landing page"\n• "Build a quiz app"`,
+      actions: [],
+    };
+  }
+
+  // ── Help / capabilities ────────────────────────────────────────────────────
+  if (/what can you (do|make|build|create)|help|capabilities|features/.test(msg)) {
+    return {
+      reply: `I can create full web projects for you! Here's what I can build:\n\n🌤 Weather apps\n✅ Todo / task managers\n🧮 Calculators\n🌐 Multi-page websites\n💼 Portfolio sites\n📝 Blogs\n🛒 Shop / e-commerce\n📊 Dashboards\n🔐 Login / sign-up forms\n🎮 Games & quizzes\n🚀 Landing pages\n\nJust describe what you want and I'll build it!`,
+      actions: [],
+    };
+  }
 
   // ── Delete intent ──────────────────────────────────────────────────────────
-  const deleteMatch = msg.match(/delete|remove/);
-  if (deleteMatch) {
-    // Try to find the file they mean
+  if (/delete|remove/.test(msg)) {
     for (const f of existingFiles) {
       if (msg.includes(f.name.toLowerCase())) {
         return { reply: `Deleting ${f.name}.`, actions: [{ type: "delete_file", filename: f.name }] };
       }
     }
+    return {
+      reply: "Which file would you like to delete? I can see: " + (existingFiles.map(f => f.name).join(", ") || "no files yet") + ".",
+      actions: [],
+    };
+  }
+
+  // ── Edit current file (with specific instruction) ─────────────────────────
+  if (/fix|edit|improve|update|refactor|change|modify|add|remove/.test(msg) && currentFile) {
+    const target = existingFiles.find(f => msg.includes(f.name.toLowerCase()));
+    if (target && target.content) {
+      // Has a target file with content — try to apply a simple transformation
+      if (/dark mode|dark theme/.test(msg)) {
+        return {
+          reply: `Added dark mode to ${target.name}.`,
+          actions: [{ type: "edit_file", filename: target.name, content: target.content.includes("background") ? target.content.replace(/background:\s*#(?:fff|white|f8fafc|f0f0f0)/gi, "background: #0d1117").replace(/color:\s*#(?:000|111|222|333|1e293b)/gi, "color: #e6edf3") : target.content + "\n/* Dark mode */\nbody { background: #0d1117; color: #e6edf3; }" }],
+        };
+      }
+    }
+    return {
+      reply: `I can see ${currentFile} in the editor. Describe exactly what change you want — for example:\n• "Add dark mode"\n• "Add a submit button"\n• "Change the color scheme to blue"\n• "Add form validation"\n\nI'll apply it directly to the file.`,
+      actions: [],
+    };
   }
 
   // ── Weather app ───────────────────────────────────────────────────────────
@@ -453,6 +493,473 @@ function calculate() {
     };
   }
 
+  // ── Multi-page website ────────────────────────────────────────────────────
+  const pageCountMatch = msg.match(/(\d+)\s*page/);
+  const pageCount = pageCountMatch ? Number(pageCountMatch[1]) : null;
+  if (
+    (pageCount && pageCount >= 2) ||
+    /multi.?page|nav(bar|igation)|multiple pages/.test(msg) ||
+    (msg.includes("page") && (msg.includes("html") || msg.includes("website") || msg.includes("site")))
+  ) {
+    const n = pageCount && pageCount <= 6 ? pageCount : 3;
+    const pages = ["Home", "About", "Contact", "Portfolio", "Services", "Blog"].slice(0, n);
+    const navLinks = pages.map((p, i) => `<a href="#" class="nav-link${i === 0 ? " active" : ""}" data-page="${p.toLowerCase()}">${p}</a>`).join("\n      ");
+    const sections = pages.map((p, i) => `  <section id="${p.toLowerCase()}" class="page${i === 0 ? " active" : ""}">
+    <h1>${p}</h1>
+    <p>${p === "Home" ? "Welcome to our website! Navigate using the menu above." : p === "About" ? "We are a team of passionate developers building great things." : p === "Contact" ? "Get in touch: <a href='mailto:hello@example.com'>hello@example.com</a>" : p === "Portfolio" ? "Check out our latest projects below." : p === "Services" ? "We offer web design, development, and consulting." : "Read our latest articles and updates."}</p>
+  </section>`).join("\n");
+    return {
+      reply: `Created a ${n}-page website with navigation! Use the nav bar to switch between ${pages.join(", ")} pages. Click Preview to see it live.`,
+      actions: [
+        { type: "create_file", filename: "index.html", language: "html", content: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>My Website</title>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+  <nav>
+    <div class="logo">MyBrand</div>
+    <div class="nav-links">
+      ${navLinks}
+    </div>
+    <button class="hamburger" id="hamburger">☰</button>
+  </nav>
+  <main>
+${sections}
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>` },
+        { type: "create_file", filename: "style.css", language: "css", content: `* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, sans-serif; background: #f8fafc; color: #1e293b; }
+nav { background: #1e293b; color: #fff; display: flex; align-items: center; justify-content: space-between; padding: 0 24px; height: 60px; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,.25); }
+.logo { font-weight: 700; font-size: 1.2rem; letter-spacing: -0.5px; }
+.nav-links { display: flex; gap: 4px; }
+.nav-link { color: rgba(255,255,255,.7); text-decoration: none; padding: 8px 16px; border-radius: 6px; font-size: 0.9rem; font-weight: 500; transition: all .2s; }
+.nav-link:hover, .nav-link.active { color: #fff; background: rgba(255,255,255,.15); }
+.hamburger { display: none; background: none; border: none; color: #fff; font-size: 1.3rem; cursor: pointer; }
+main { max-width: 900px; margin: 0 auto; padding: 60px 24px; }
+.page { display: none; animation: fadeIn .3s ease; }
+.page.active { display: block; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+h1 { font-size: 2.5rem; font-weight: 700; margin-bottom: 16px; color: #0f172a; }
+p { font-size: 1.1rem; color: #475569; line-height: 1.7; }
+a { color: #3b82f6; }
+@media (max-width: 600px) { .nav-links { display: none; flex-direction: column; position: absolute; top: 60px; left: 0; right: 0; background: #1e293b; padding: 8px; }
+.nav-links.open { display: flex; } .hamburger { display: block; } }` },
+        { type: "create_file", filename: "app.js", language: "javascript", content: `const links = document.querySelectorAll(".nav-link");
+const pages = document.querySelectorAll(".page");
+const hamburger = document.getElementById("hamburger");
+const navLinks = document.querySelector(".nav-links");
+
+links.forEach(link => {
+  link.addEventListener("click", e => {
+    e.preventDefault();
+    const target = link.dataset.page;
+    links.forEach(l => l.classList.remove("active"));
+    pages.forEach(p => p.classList.remove("active"));
+    link.classList.add("active");
+    document.getElementById(target)?.classList.add("active");
+    navLinks.classList.remove("open");
+  });
+});
+
+hamburger.addEventListener("click", () => navLinks.classList.toggle("open"));` },
+      ],
+    };
+  }
+
+  // ── Portfolio website ──────────────────────────────────────────────────────
+  if (/portfolio|resume|cv|personal site/.test(msg)) {
+    return {
+      reply: "Created a professional portfolio website with hero, skills, projects, and contact sections. Click Preview to see it!",
+      actions: [
+        { type: "create_file", filename: "index.html", language: "html", content: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>My Portfolio</title>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+  <nav><div class="logo">Alex Dev</div><div class="nav-links"><a href="#about">About</a><a href="#skills">Skills</a><a href="#projects">Projects</a><a href="#contact">Contact</a></div></nav>
+  <section class="hero" id="about">
+    <div class="hero-content">
+      <div class="avatar">👨‍💻</div>
+      <h1>Hi, I'm <span>Alex</span></h1>
+      <p>Full-stack developer building beautiful, fast, and accessible web apps.</p>
+      <div class="hero-btns"><a href="#projects" class="btn">View Projects</a><a href="#contact" class="btn btn-outline">Contact Me</a></div>
+    </div>
+  </section>
+  <section id="skills"><h2>Skills</h2><div class="skills-grid" id="skillsGrid"></div></section>
+  <section id="projects"><h2>Projects</h2><div class="projects-grid" id="projectsGrid"></div></section>
+  <section id="contact"><h2>Get In Touch</h2><p>Open to freelance work and full-time opportunities.</p>
+    <form class="contact-form"><input type="text" placeholder="Your name"/><input type="email" placeholder="Your email"/><textarea placeholder="Your message" rows="4"></textarea><button type="submit" class="btn">Send Message</button></form>
+  </section>
+  <footer><p>© 2024 Alex Dev · Built with ❤️</p></footer>
+  <script src="app.js"></script>
+</body>
+</html>` },
+        { type: "create_file", filename: "style.css", language: "css", content: `* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, sans-serif; background: #0f0f23; color: #ccd6f6; scroll-behavior: smooth; }
+nav { display: flex; justify-content: space-between; align-items: center; padding: 20px 5%; position: fixed; top: 0; width: 100%; background: rgba(15,15,35,.9); backdrop-filter: blur(8px); z-index: 100; }
+.logo { font-weight: 700; color: #64ffda; font-size: 1.2rem; }
+.nav-links a { color: #ccd6f6; text-decoration: none; margin-left: 24px; font-size: .9rem; transition: color .2s; }
+.nav-links a:hover { color: #64ffda; }
+.hero { min-height: 100vh; display: flex; align-items: center; justify-content: center; text-align: center; padding: 80px 24px 40px; }
+.avatar { font-size: 5rem; margin-bottom: 16px; }
+h1 { font-size: 3rem; font-weight: 700; margin-bottom: 12px; }
+h1 span { color: #64ffda; }
+.hero p { font-size: 1.2rem; color: #8892b0; max-width: 500px; margin: 0 auto 28px; }
+.hero-btns { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+.btn { padding: 12px 28px; background: #64ffda; color: #0f0f23; border: 2px solid #64ffda; border-radius: 6px; font-weight: 600; text-decoration: none; font-size: .95rem; transition: all .2s; cursor: pointer; }
+.btn:hover { background: transparent; color: #64ffda; }
+.btn-outline { background: transparent; color: #64ffda; }
+.btn-outline:hover { background: #64ffda; color: #0f0f23; }
+section:not(.hero) { padding: 80px 5%; max-width: 1000px; margin: 0 auto; }
+h2 { font-size: 2rem; font-weight: 700; margin-bottom: 40px; color: #ccd6f6; border-bottom: 2px solid #64ffda; padding-bottom: 8px; display: inline-block; }
+.skills-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 16px; }
+.skill-card { background: #172a45; border: 1px solid #233554; border-radius: 10px; padding: 20px; text-align: center; transition: transform .2s; }
+.skill-card:hover { transform: translateY(-4px); border-color: #64ffda; }
+.skill-icon { font-size: 2rem; margin-bottom: 8px; }
+.skill-name { font-size: .9rem; color: #8892b0; }
+.projects-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
+.project-card { background: #172a45; border: 1px solid #233554; border-radius: 12px; padding: 24px; transition: transform .2s; }
+.project-card:hover { transform: translateY(-4px); border-color: #64ffda; }
+.project-card h3 { color: #ccd6f6; margin-bottom: 8px; }
+.project-card p { font-size: .9rem; color: #8892b0; margin-bottom: 16px; }
+.tags { display: flex; gap: 8px; flex-wrap: wrap; }
+.tag { background: rgba(100,255,218,.1); color: #64ffda; border: 1px solid #64ffda; padding: 3px 10px; border-radius: 20px; font-size: .75rem; }
+.contact-form { display: flex; flex-direction: column; gap: 16px; max-width: 500px; }
+.contact-form input, .contact-form textarea { background: #172a45; border: 1px solid #233554; color: #ccd6f6; padding: 12px 16px; border-radius: 8px; font-family: inherit; font-size: 1rem; }
+.contact-form input:focus, .contact-form textarea:focus { outline: none; border-color: #64ffda; }
+footer { text-align: center; padding: 40px; color: #8892b0; font-size: .9rem; border-top: 1px solid #233554; margin-top: 60px; }` },
+        { type: "create_file", filename: "app.js", language: "javascript", content: `const skills = [
+  {icon:"⚛️",name:"React"},{icon:"🟨",name:"JavaScript"},{icon:"🔷",name:"TypeScript"},
+  {icon:"🎨",name:"CSS"},{icon:"🐍",name:"Python"},{icon:"🗄️",name:"SQL"},
+  {icon:"☁️",name:"AWS"},{icon:"🐙",name:"Git"},{icon:"📱",name:"Mobile"},
+];
+const projects = [
+  {title:"E-Commerce Platform",desc:"Full-stack shop with cart, auth, and payments.",tags:["React","Node","PostgreSQL"]},
+  {title:"AI Chat App",desc:"Real-time chat with AI assistant and markdown support.",tags:["TypeScript","OpenAI","WebSockets"]},
+  {title:"Portfolio Dashboard",desc:"Analytics dashboard with charts and live data.",tags:["React","D3.js","REST API"]},
+];
+
+document.getElementById("skillsGrid").innerHTML = skills.map(s =>
+  \`<div class="skill-card"><div class="skill-icon">\${s.icon}</div><div class="skill-name">\${s.name}</div></div>\`
+).join("");
+
+document.getElementById("projectsGrid").innerHTML = projects.map(p =>
+  \`<div class="project-card"><h3>\${p.title}</h3><p>\${p.desc}</p><div class="tags">\${p.tags.map(t => \`<span class="tag">\${t}</span>\`).join("")}</div></div>\`
+).join("");
+
+document.querySelector(".contact-form").addEventListener("submit", e => {
+  e.preventDefault();
+  alert("Thanks! Message sent. (Connect a backend to handle this for real.)");
+});` },
+      ],
+    };
+  }
+
+  // ── Landing page ──────────────────────────────────────────────────────────
+  if (/landing|homepage|home page|startup|saas|product page/.test(msg)) {
+    return {
+      reply: "Created a modern SaaS landing page with hero, features, pricing, and CTA sections. Click Preview!",
+      actions: [
+        { type: "create_file", filename: "index.html", language: "html", content: `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Launch Fast</title><link rel="stylesheet" href="style.css"/></head>
+<body>
+<nav><span class="logo">🚀 LaunchFast</span><div><a href="#features">Features</a><a href="#pricing">Pricing</a><a class="btn-nav" href="#cta">Get Started</a></div></nav>
+<section class="hero">
+  <div class="badge">✨ Now in Public Beta</div>
+  <h1>Build & Ship <span>10× Faster</span></h1>
+  <p>The all-in-one platform that takes your idea from zero to production in hours, not weeks.</p>
+  <div class="cta-group"><a href="#cta" class="btn">Start for Free →</a><a href="#features" class="btn-ghost">See how it works</a></div>
+  <div class="hero-stats"><div><strong>10k+</strong><span>Users</span></div><div><strong>99.9%</strong><span>Uptime</span></div><div><strong>4.9★</strong><span>Rating</span></div></div>
+</section>
+<section id="features"><h2>Everything you need</h2><p class="sub">Stop juggling tools. Get everything in one platform.</p>
+<div class="features-grid" id="featGrid"></div></section>
+<section id="pricing"><h2>Simple pricing</h2><p class="sub">No hidden fees. Cancel anytime.</p>
+<div class="plans" id="plansGrid"></div></section>
+<section id="cta" class="cta-section"><h2>Ready to launch?</h2><p>Join 10,000+ founders who ship faster with LaunchFast.</p>
+<form class="signup"><input type="email" placeholder="Enter your email"/><button type="submit" class="btn">Get Early Access</button></form></section>
+<footer><p>© 2024 LaunchFast · <a href="#">Privacy</a> · <a href="#">Terms</a></p></footer>
+<script src="app.js"></script></body></html>` },
+        { type: "create_file", filename: "style.css", language: "css", content: `*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,sans-serif;background:#030712;color:#f1f5f9}
+nav{display:flex;justify-content:space-between;align-items:center;padding:18px 6%;position:sticky;top:0;background:rgba(3,7,18,.85);backdrop-filter:blur(12px);z-index:100}
+.logo{font-weight:800;font-size:1.1rem}
+nav a{color:#94a3b8;text-decoration:none;margin-left:24px;font-size:.9rem;transition:color .2s}
+nav a:hover{color:#f1f5f9}
+.btn-nav{background:#6366f1;color:#fff!important;padding:8px 18px;border-radius:8px}
+.hero{text-align:center;padding:100px 6% 80px;max-width:800px;margin:0 auto}
+.badge{display:inline-block;background:rgba(99,102,241,.15);border:1px solid rgba(99,102,241,.4);color:#818cf8;padding:6px 16px;border-radius:20px;font-size:.8rem;margin-bottom:24px}
+h1{font-size:clamp(2.2rem,5vw,3.8rem);font-weight:800;line-height:1.1;margin-bottom:20px}
+h1 span{background:linear-gradient(135deg,#6366f1,#8b5cf6,#ec4899);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hero p{font-size:1.15rem;color:#94a3b8;max-width:520px;margin:0 auto 32px;line-height:1.7}
+.cta-group{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-bottom:48px}
+.btn{background:#6366f1;color:#fff;padding:13px 28px;border-radius:10px;text-decoration:none;font-weight:600;font-size:.95rem;border:none;cursor:pointer;transition:background .2s}
+.btn:hover{background:#4f46e5}
+.btn-ghost{color:#94a3b8;padding:13px 28px;border-radius:10px;text-decoration:none;border:1px solid #334155;font-weight:500;font-size:.95rem;transition:all .2s}
+.btn-ghost:hover{color:#f1f5f9;border-color:#64748b}
+.hero-stats{display:flex;justify-content:center;gap:40px;padding-top:32px;border-top:1px solid #1e293b}
+.hero-stats div{text-align:center}
+.hero-stats strong{display:block;font-size:1.6rem;font-weight:700;color:#6366f1}
+.hero-stats span{font-size:.85rem;color:#64748b}
+section:not(.hero):not(.cta-section){padding:80px 6%;max-width:1100px;margin:0 auto}
+h2{font-size:2rem;font-weight:700;text-align:center;margin-bottom:12px}
+.sub{text-align:center;color:#64748b;margin-bottom:48px}
+.features-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:20px}
+.feat{background:#0f172a;border:1px solid #1e293b;border-radius:14px;padding:24px;transition:border-color .2s}
+.feat:hover{border-color:#6366f1}
+.feat-icon{font-size:2rem;margin-bottom:12px}
+.feat h3{font-size:1rem;font-weight:600;margin-bottom:6px}
+.feat p{font-size:.85rem;color:#64748b;line-height:1.6}
+.plans{display:flex;gap:20px;justify-content:center;flex-wrap:wrap}
+.plan{background:#0f172a;border:1px solid #1e293b;border-radius:16px;padding:32px;min-width:240px;text-align:center;transition:border-color .2s;position:relative}
+.plan.popular{border-color:#6366f1}
+.pop-badge{position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:#6366f1;color:#fff;padding:3px 14px;border-radius:20px;font-size:.75rem;font-weight:600}
+.plan h3{font-size:1.1rem;font-weight:700;margin-bottom:8px}
+.price{font-size:2.5rem;font-weight:800;margin:12px 0 4px}
+.price span{font-size:1rem;color:#64748b}
+.plan p{color:#64748b;font-size:.85rem;margin-bottom:20px}
+.cta-section{text-align:center;padding:80px 6%;border-top:1px solid #1e293b}
+.signup{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:28px}
+.signup input{background:#0f172a;border:1px solid #334155;color:#f1f5f9;padding:12px 20px;border-radius:10px;font-size:1rem;width:280px}
+.signup input:focus{outline:none;border-color:#6366f1}
+footer{text-align:center;padding:32px;color:#475569;font-size:.85rem;border-top:1px solid #1e293b}
+footer a{color:#6366f1;text-decoration:none}` },
+        { type: "create_file", filename: "app.js", language: "javascript", content: `const features=[
+  {icon:"⚡",title:"Instant Deploy",desc:"Push to production in one command. Zero config required."},
+  {icon:"🔒",title:"Built-in Auth",desc:"User authentication out of the box. OAuth, magic links, MFA."},
+  {icon:"📊",title:"Analytics",desc:"Real-time dashboards to monitor your app's performance."},
+  {icon:"🗄️",title:"Database",desc:"Managed PostgreSQL with automatic backups and scaling."},
+  {icon:"🤖",title:"AI Assistant",desc:"AI coding assistant to help you ship features faster."},
+  {icon:"🌍",title:"Global CDN",desc:"Deploy to 30+ edge locations for blazing fast load times."},
+];
+const plans=[
+  {name:"Free",price:"$0",desc:"Perfect for side projects",badge:null},
+  {name:"Pro",price:"$19",desc:"For growing startups",badge:"Most Popular"},
+  {name:"Team",price:"$49",desc:"For scaling companies",badge:null},
+];
+document.getElementById("featGrid").innerHTML=features.map(f=>\`<div class="feat"><div class="feat-icon">\${f.icon}</div><h3>\${f.title}</h3><p>\${f.desc}</p></div>\`).join("");
+document.getElementById("plansGrid").innerHTML=plans.map(p=>\`<div class="plan\${p.badge?" popular":""}">\${p.badge?\`<div class="pop-badge">\${p.badge}</div>\`:""}<h3>\${p.name}</h3><div class="price">\${p.price}<span>/mo</span></div><p>\${p.desc}</p></div>\`).join("");
+document.querySelector(".signup").addEventListener("submit",e=>{e.preventDefault();alert("🎉 You're on the list!");});` },
+      ],
+    };
+  }
+
+  // ── Blog ───────────────────────────────────────────────────────────────────
+  if (/blog|article|post|news/.test(msg)) {
+    return {
+      reply: "Created a clean blog homepage with featured articles, categories, and a newsletter signup. Click Preview!",
+      actions: [
+        { type: "create_file", filename: "index.html", language: "html", content: `<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>The Dev Blog</title><link rel="stylesheet" href="style.css"/></head>
+<body><nav><span class="logo">📖 DevBlog</span><div class="nav-cats"><a href="#">All</a><a href="#">Tech</a><a href="#">Design</a><a href="#">Career</a></div></nav>
+<header><h1>Stories for curious minds</h1><p>Insights on technology, design, and the craft of building software.</p>
+<form class="search"><input type="search" placeholder="Search articles…"/><button>🔍</button></form></header>
+<main><section class="featured" id="featured"></section>
+<section class="content"><div class="posts" id="posts"></div>
+<aside class="sidebar"><h3>Categories</h3><div class="cats" id="cats"></div>
+<h3 style="margin-top:28px">Newsletter</h3><p style="font-size:.9rem;color:#64748b;margin-bottom:12px">Get articles in your inbox weekly.</p>
+<form class="nl-form"><input type="email" placeholder="your@email.com"/><button class="btn">Subscribe</button></form></aside></section></main>
+<footer><p>© 2024 DevBlog · Made with ❤️</p></footer>
+<script src="app.js"></script></body></html>` },
+        { type: "create_file", filename: "style.css", language: "css", content: `*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,sans-serif;background:#f8fafc;color:#1e293b}
+nav{display:flex;justify-content:space-between;align-items:center;padding:16px 6%;background:#fff;border-bottom:1px solid #e2e8f0;position:sticky;top:0;z-index:10}
+.logo{font-weight:700;font-size:1.1rem}
+.nav-cats a{color:#64748b;text-decoration:none;margin-left:20px;font-size:.9rem;transition:color .2s}
+.nav-cats a:hover{color:#1e293b}
+header{text-align:center;padding:60px 24px 48px;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#fff}
+header h1{font-size:2.5rem;font-weight:800;margin-bottom:12px}
+header p{font-size:1.1rem;opacity:.85;margin-bottom:28px}
+.search{display:flex;gap:8px;justify-content:center}
+.search input{padding:12px 20px;border:none;border-radius:10px;font-size:1rem;width:320px;background:rgba(255,255,255,.9)}
+.search button{padding:12px 16px;border:none;border-radius:10px;background:rgba(255,255,255,.2);color:#fff;font-size:1rem;cursor:pointer}
+main{max-width:1100px;margin:0 auto;padding:48px 24px}
+.featured{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:24px;margin-bottom:48px}
+.feat-card{background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.1);transition:transform .2s,box-shadow .2s}
+.feat-card:hover{transform:translateY(-4px);box-shadow:0 8px 24px rgba(0,0,0,.12)}
+.card-img{height:160px;display:flex;align-items:center;justify-content:center;font-size:3rem}
+.card-body{padding:20px}
+.tag{background:#ede9fe;color:#7c3aed;padding:3px 10px;border-radius:20px;font-size:.75rem;font-weight:600;margin-bottom:10px;display:inline-block}
+.feat-card h3{font-size:1.05rem;font-weight:700;margin-bottom:8px;line-height:1.4}
+.feat-card p{font-size:.85rem;color:#64748b;line-height:1.6;margin-bottom:12px}
+.meta{font-size:.8rem;color:#94a3b8}
+.content{display:grid;grid-template-columns:1fr 300px;gap:32px}
+.posts{display:flex;flex-direction:column;gap:20px}
+.post{display:flex;gap:16px;background:#fff;border-radius:12px;padding:20px;box-shadow:0 1px 3px rgba(0,0,0,.08);transition:box-shadow .2s}
+.post:hover{box-shadow:0 4px 12px rgba(0,0,0,.12)}
+.post-icon{font-size:2.5rem;width:60px;height:60px;background:#f1f5f9;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.post-body h3{font-size:1rem;font-weight:700;margin-bottom:6px}
+.post-body p{font-size:.85rem;color:#64748b;line-height:1.5}
+.sidebar h3{font-size:1rem;font-weight:700;margin-bottom:14px}
+.cats{display:flex;flex-direction:column;gap:8px}
+.cat-item{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:#fff;border-radius:8px;font-size:.9rem;box-shadow:0 1px 2px rgba(0,0,0,.06)}
+.cat-count{background:#f1f5f9;padding:2px 8px;border-radius:20px;font-size:.75rem;font-weight:600}
+.nl-form{display:flex;flex-direction:column;gap:8px}
+.nl-form input{padding:10px 14px;border:1px solid #e2e8f0;border-radius:8px;font-size:.9rem}
+.btn{background:#7c3aed;color:#fff;border:none;padding:10px 20px;border-radius:8px;font-size:.9rem;cursor:pointer}
+footer{text-align:center;padding:32px;color:#94a3b8;font-size:.85rem;border-top:1px solid #e2e8f0;margin-top:48px}
+@media(max-width:700px){.content{grid-template-columns:1fr}}` },
+        { type: "create_file", filename: "app.js", language: "javascript", content: `const featured=[
+  {icon:"🚀",tag:"Tech",title:"10 VS Code Extensions That Boost Productivity",desc:"The must-have extensions every developer should install today.",author:"Sarah K.",date:"Dec 5"},
+  {icon:"🎨",tag:"Design",title:"Design Systems in 2024: What Actually Works",desc:"How leading teams build and maintain scalable design systems.",author:"Mike R.",date:"Dec 3"},
+  {icon:"💡",tag:"Career",title:"From Junior to Senior in 18 Months",desc:"The mindset shifts and habits that accelerated my career growth.",author:"Alex J.",date:"Nov 30"},
+];
+const posts=[
+  {icon:"⚛️",title:"React Server Components: A Deep Dive",desc:"Understanding RSC from first principles and when to use them.",meta:"Nov 28 · 8 min read"},
+  {icon:"🔒",title:"Auth Best Practices for Modern Web Apps",desc:"JWT, sessions, OAuth — which to use and when.",meta:"Nov 25 · 6 min read"},
+  {icon:"📊",title:"Database Indexing: The Complete Guide",desc:"Stop guessing and start knowing exactly which indexes to add.",meta:"Nov 22 · 10 min read"},
+];
+const cats=[{name:"Technology",count:42},{name:"Design",count:28},{name:"Career",count:19},{name:"Tutorials",count:35}];
+
+document.getElementById("featured").innerHTML=featured.map(f=>\`<div class="feat-card"><div class="card-img">\${f.icon}</div><div class="card-body"><span class="tag">\${f.tag}</span><h3>\${f.title}</h3><p>\${f.desc}</p><div class="meta">By \${f.author} · \${f.date}</div></div></div>\`).join("");
+document.getElementById("posts").innerHTML=posts.map(p=>\`<div class="post"><div class="post-icon">\${p.icon}</div><div class="post-body"><h3>\${p.title}</h3><p>\${p.desc}</p><div class="meta" style="font-size:.8rem;color:#94a3b8;margin-top:6px">\${p.meta}</div></div></div>\`).join("");
+document.getElementById("cats").innerHTML=cats.map(c=>\`<div class="cat-item"><span>\${c.name}</span><span class="cat-count">\${c.count}</span></div>\`).join("");
+document.querySelector(".nl-form").addEventListener("submit",e=>{e.preventDefault();alert("🎉 Subscribed! Thanks for joining.");});` },
+      ],
+    };
+  }
+
+  // ── Quiz app ───────────────────────────────────────────────────────────────
+  if (/quiz|trivia|test|exam/.test(msg)) {
+    return {
+      reply: "Created an interactive quiz app with score tracking and results screen. Click Preview to try it!",
+      actions: [
+        { type: "create_file", filename: "index.html", language: "html", content: `<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Quiz App</title><link rel="stylesheet" href="style.css"/></head>
+<body><div class="app">
+  <div id="start-screen" class="screen active"><div class="icon">🧠</div><h1>Knowledge Quiz</h1><p>10 questions · Multiple choice · Track your score</p><button class="btn" id="startBtn">Start Quiz →</button></div>
+  <div id="quiz-screen" class="screen"><div class="header"><div class="progress-wrap"><div class="progress-bar" id="progress"></div></div><div class="q-meta"><span id="qNum">1/10</span><span class="score-badge">⭐ <span id="liveScore">0</span></span></div></div>
+    <h2 id="question"></h2><div class="options" id="options"></div><button class="btn" id="nextBtn" style="display:none">Next →</button></div>
+  <div id="result-screen" class="screen"><div class="icon" id="resultEmoji">🏆</div><h1 id="resultTitle">Amazing!</h1><div class="final-score" id="finalScore"></div><p id="resultMsg"></p><button class="btn" id="restartBtn">Play Again</button></div>
+</div><script src="app.js"></script></body></html>` },
+        { type: "create_file", filename: "style.css", language: "css", content: `*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,sans-serif;background:linear-gradient(135deg,#1e1b4b 0%,#312e81 100%);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.app{background:#fff;border-radius:24px;padding:40px;max-width:520px;width:100%;box-shadow:0 24px 64px rgba(0,0,0,.3)}
+.screen{display:none;text-align:center}
+.screen.active{display:block}
+.icon{font-size:4rem;margin-bottom:16px}
+h1{font-size:2rem;font-weight:800;color:#1e1b4b;margin-bottom:12px}
+p{color:#64748b;margin-bottom:28px;line-height:1.6}
+.btn{background:#6366f1;color:#fff;border:none;padding:14px 32px;border-radius:12px;font-size:1rem;font-weight:600;cursor:pointer;transition:background .2s;width:100%;margin-top:16px}
+.btn:hover{background:#4f46e5}
+.header{margin-bottom:24px}
+.progress-wrap{height:8px;background:#e2e8f0;border-radius:4px;overflow:hidden;margin-bottom:12px}
+.progress-bar{height:100%;background:linear-gradient(90deg,#6366f1,#8b5cf6);border-radius:4px;transition:width .4s}
+.q-meta{display:flex;justify-content:space-between;font-size:.85rem;color:#64748b}
+.score-badge{color:#6366f1;font-weight:600}
+h2{font-size:1.15rem;font-weight:700;color:#1e1b4b;margin-bottom:20px;text-align:left;line-height:1.5}
+.options{display:flex;flex-direction:column;gap:10px}
+.option{text-align:left;padding:14px 18px;border:2px solid #e2e8f0;border-radius:12px;font-size:.95rem;cursor:pointer;transition:all .2s;background:#fff;color:#1e293b}
+.option:hover:not(:disabled){background:#f0f1ff;border-color:#6366f1}
+.option.correct{background:#d1fae5;border-color:#10b981;color:#064e3b}
+.option.wrong{background:#fee2e2;border-color:#ef4444;color:#991b1b}
+.final-score{font-size:3.5rem;font-weight:800;color:#6366f1;margin:16px 0}` },
+        { type: "create_file", filename: "app.js", language: "javascript", content: `const questions=[
+  {q:"What does HTML stand for?",opts:["HyperText Markup Language","High Tech Machine Learning","How To Make Links","Hyper Transfer Method Language"],ans:0},
+  {q:"Which language runs in a web browser?",opts:["Python","Java","JavaScript","C++"],ans:2},
+  {q:"What does CSS stand for?",opts:["Computer Style Sheets","Cascading Style Sheets","Creative Style System","Colorful Style Sheets"],ans:1},
+  {q:"Which tag is used for the largest heading in HTML?",opts:["<h6>","<heading>","<h1>","<head>"],ans:2},
+  {q:"What is 'null' in JavaScript?",opts:["An undefined variable","An empty string","An intentional absence of value","A number equal to zero"],ans:2},
+  {q:"Which CSS property controls text size?",opts:["font-size","text-size","font-style","text-weight"],ans:0},
+  {q:"What does API stand for?",opts:["Applied Programming Interface","Application Protocol Internet","Application Programming Interface","Advanced Programming Index"],ans:2},
+  {q:"Which of these is NOT a JavaScript framework?",opts:["React","Vue","Angular","Laravel"],ans:3},
+  {q:"What symbol denotes comments in JavaScript?",opts:["//","##","--","**"],ans:0},
+  {q:"Which HTTP method is used to send form data?",opts:["GET","DELETE","PUT","POST"],ans:3},
+];
+let cur=0,score=0,answered=false;
+const startScreen=document.getElementById("start-screen");
+const quizScreen=document.getElementById("quiz-screen");
+const resultScreen=document.getElementById("result-screen");
+function showQ(){const q=questions[cur];document.getElementById("question").textContent=q.q;document.getElementById("qNum").textContent=\`\${cur+1}/\${questions.length}\`;document.getElementById("progress").style.width=\`\${(cur/questions.length)*100}%\`;document.getElementById("nextBtn").style.display="none";answered=false;const opts=document.getElementById("options");opts.innerHTML=q.opts.map((o,i)=>\`<button class="option" onclick="pick(this,\${i})">\${o}</button>\`).join("");}
+function pick(btn,i){if(answered)return;answered=true;const q=questions[cur];if(i===q.ans){btn.classList.add("correct");score++;}else{btn.classList.add("wrong");document.querySelectorAll(".option")[q.ans].classList.add("correct");}document.querySelectorAll(".option").forEach(b=>b.disabled=true);document.getElementById("liveScore").textContent=score;document.getElementById("nextBtn").style.display="block";}
+document.getElementById("startBtn").onclick=()=>{startScreen.classList.remove("active");quizScreen.classList.add("active");showQ();};
+document.getElementById("nextBtn").onclick=()=>{cur++;if(cur<questions.length)showQ();else showResult();};
+function showResult(){quizScreen.classList.remove("active");resultScreen.classList.add("active");const pct=Math.round((score/questions.length)*100);document.getElementById("finalScore").textContent=\`\${score}/\${questions.length}\`;document.getElementById("resultEmoji").textContent=pct>=80?"🏆":pct>=60?"🎉":"💪";document.getElementById("resultTitle").textContent=pct>=80?"Excellent!":pct>=60?"Good Job!":"Keep Practicing!";document.getElementById("resultMsg").textContent=\`You scored \${pct}%. \${pct>=80?"You're a trivia master!":pct>=60?"Solid performance!":"Study up and try again!"}\`;}
+document.getElementById("restartBtn").onclick=()=>{cur=0;score=0;resultScreen.classList.remove("active");quizScreen.classList.add("active");showQ();};` },
+      ],
+    };
+  }
+
+  // ── Login / auth form ─────────────────────────────────────────────────────
+  if (/login|sign.?in|sign.?up|register|auth|account/.test(msg)) {
+    return {
+      reply: "Created a polished login/signup page with tabbed form switching. Click Preview to see it!",
+      actions: [
+        { type: "create_file", filename: "index.html", language: "html", content: `<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Sign In</title><link rel="stylesheet" href="style.css"/></head>
+<body><div class="container">
+<div class="card"><div class="logo">🔐</div><h1>Welcome back</h1>
+<div class="tabs"><button class="tab active" data-tab="login">Sign In</button><button class="tab" data-tab="signup">Sign Up</button></div>
+<form id="login" class="form active">
+  <label>Email<input type="email" placeholder="you@example.com" required/></label>
+  <label>Password<input type="password" placeholder="Your password" required/></label>
+  <div class="remember"><label><input type="checkbox"/> Remember me</label><a href="#">Forgot password?</a></div>
+  <button class="btn" type="submit">Sign In</button>
+  <div class="divider"><span>or</span></div>
+  <button class="btn btn-github" type="button">🐙 Continue with GitHub</button>
+  <button class="btn btn-google" type="button">🔵 Continue with Google</button>
+</form>
+<form id="signup" class="form">
+  <label>Full Name<input type="text" placeholder="John Doe" required/></label>
+  <label>Email<input type="email" placeholder="you@example.com" required/></label>
+  <label>Password<input type="password" placeholder="Min. 8 characters" required/></label>
+  <label>Confirm Password<input type="password" placeholder="Repeat password" required/></label>
+  <button class="btn" type="submit">Create Account</button>
+</form></div></div>
+<script src="app.js"></script></body></html>` },
+        { type: "create_file", filename: "style.css", language: "css", content: `*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,sans-serif;background:linear-gradient(135deg,#0f172a 0%,#1e1b4b 100%);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.container{width:100%;max-width:400px}
+.card{background:#fff;border-radius:20px;padding:36px;box-shadow:0 24px 64px rgba(0,0,0,.3)}
+.logo{font-size:2.5rem;text-align:center;margin-bottom:8px}
+h1{font-size:1.5rem;font-weight:700;text-align:center;margin-bottom:24px;color:#1e1b4b}
+.tabs{display:flex;background:#f1f5f9;border-radius:10px;padding:4px;margin-bottom:24px}
+.tab{flex:1;padding:9px;border:none;background:none;border-radius:8px;font-size:.9rem;font-weight:500;cursor:pointer;color:#64748b;transition:all .2s}
+.tab.active{background:#fff;color:#1e1b4b;box-shadow:0 1px 4px rgba(0,0,0,.12)}
+.form{display:none;flex-direction:column;gap:14px}
+.form.active{display:flex}
+label{font-size:.85rem;font-weight:600;color:#374151;display:flex;flex-direction:column;gap:6px}
+input[type=text],input[type=email],input[type=password]{padding:12px 14px;border:2px solid #e5e7eb;border-radius:10px;font-size:.95rem;transition:border-color .2s;font-family:inherit}
+input:focus{outline:none;border-color:#6366f1}
+.remember{display:flex;justify-content:space-between;align-items:center;font-size:.85rem;font-weight:400}
+.remember label{flex-direction:row;gap:6px;align-items:center;cursor:pointer}
+.remember a{color:#6366f1;text-decoration:none}
+.btn{padding:13px;border:none;border-radius:10px;font-size:.95rem;font-weight:600;cursor:pointer;transition:background .2s;background:#6366f1;color:#fff}
+.btn:hover{background:#4f46e5}
+.divider{display:flex;align-items:center;gap:12px;margin:2px 0}
+.divider::before,.divider::after{content:'';flex:1;height:1px;background:#e5e7eb}
+.divider span{font-size:.8rem;color:#9ca3af}
+.btn-github{background:#24292e;color:#fff}
+.btn-github:hover{background:#1a1e22}
+.btn-google{background:#fff;color:#374151;border:2px solid #e5e7eb}
+.btn-google:hover{background:#f9fafb}` },
+        { type: "create_file", filename: "app.js", language: "javascript", content: `document.querySelectorAll(".tab").forEach(tab=>{
+  tab.addEventListener("click",()=>{
+    document.querySelectorAll(".tab,.form").forEach(el=>el.classList.remove("active"));
+    tab.classList.add("active");
+    document.getElementById(tab.dataset.tab).classList.add("active");
+  });
+});
+document.getElementById("login").addEventListener("submit",e=>{e.preventDefault();alert("✅ Logged in! (Connect to a real backend to authenticate users.)");});
+document.getElementById("signup").addEventListener("submit",e=>{e.preventDefault();alert("🎉 Account created! (Connect to a real backend to save users.)");});` },
+      ],
+    };
+  }
+
   // ── Edit / fix current file ───────────────────────────────────────────────
   if ((msg.includes("fix") || msg.includes("edit") || msg.includes("improve") || msg.includes("update") || msg.includes("refactor")) && currentFile) {
     return {
@@ -461,14 +968,17 @@ function calculate() {
     };
   }
 
-  // ── Generic create intent ─────────────────────────────────────────────────
-  if (msg.includes("create") || msg.includes("build") || msg.includes("make") || msg.includes("generate") || msg.includes("write")) {
-    // Simple landing page as default
+  // ── Generic create intent OR file-name hint ────────────────────────────────
+  const hasCreateVerb = /create|build|make|generate|write|new|start/.test(msg);
+  const hasHtmlFile = /\.html/.test(msg);
+  const hasWebHint = /website|site|app|page|web/.test(msg);
+
+  if (hasCreateVerb || hasHtmlFile || hasWebHint) {
+    // Build a relevant starter based on any keywords found
     return {
-      reply: "Created a starter HTML/CSS/JS project. Open index.html to preview it, then tell me what to build!",
+      reply: "Created a starter HTML/CSS/JS project. Click **Preview** to see it live, then tell me what to change!",
       actions: [
-        { type: "create_file", filename: "index.html", language: "html",
-          content: `<!DOCTYPE html>
+        { type: "create_file", filename: "index.html", language: "html", content: `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
@@ -479,38 +989,32 @@ function calculate() {
 <body>
   <main>
     <h1>👋 Hello!</h1>
-    <p>Start building something awesome. Edit this file or ask the AI to help.</p>
+    <p>Your starter project is ready. Click <strong>Preview</strong> above to see it live.</p>
     <button id="btn">Click me</button>
     <p id="msg"></p>
   </main>
   <script src="app.js"></script>
 </body>
 </html>` },
-        { type: "create_file", filename: "style.css", language: "css",
-          content: `* { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: system-ui, sans-serif; background: #f8fafc; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
-main { text-align: center; padding: 40px; }
-h1 { font-size: 2.5rem; margin-bottom: 12px; color: #1e293b; }
-p { color: #64748b; margin-bottom: 24px; }
-button { padding: 12px 28px; background: #3b82f6; color: #fff; border: none; border-radius: 8px; font-size: 1rem; cursor: pointer; }
-button:hover { background: #2563eb; }
-#msg { margin-top: 16px; font-weight: 600; color: #3b82f6; }` },
-        { type: "create_file", filename: "app.js", language: "javascript",
-          content: `document.getElementById("btn").addEventListener("click", () => {
-  document.getElementById("msg").textContent = "It works! Now ask the AI to build something. 🚀";
+        { type: "create_file", filename: "style.css", language: "css", content: `* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+main { background: #fff; border-radius: 20px; text-align: center; padding: 48px 40px; box-shadow: 0 20px 60px rgba(0,0,0,.2); max-width: 480px; width: 90%; }
+h1 { font-size: 2rem; margin-bottom: 12px; color: #1e293b; }
+p { color: #64748b; margin-bottom: 24px; line-height: 1.6; }
+button { padding: 12px 28px; background: #6366f1; color: #fff; border: none; border-radius: 10px; font-size: 1rem; cursor: pointer; transition: background .2s; }
+button:hover { background: #4f46e5; }
+#msg { margin-top: 16px; font-weight: 600; color: #6366f1; min-height: 24px; }` },
+        { type: "create_file", filename: "app.js", language: "javascript", content: `document.getElementById("btn").addEventListener("click", () => {
+  document.getElementById("msg").textContent = "It works! 🚀 Now describe what you want to build.";
 });` },
       ],
     };
   }
 
-  // ── Default helpful reply ─────────────────────────────────────────────────
+  // ── Smart default ──────────────────────────────────────────────────────────
+  // The message didn't match any pattern — acknowledge it and suggest options
   return {
-    reply: `I'm your agentic coding assistant. I can create, edit, and delete files in your project. Try asking me to:
-• "Create a weather app with 7 day forecast"
-• "Build a todo list app"
-• "Make a calculator"
-• "Edit ${currentFile ?? "index.html"} to add dark mode"
-• "Delete old.js"`,
+    reply: `I got your message: "${message}"\n\nI'm best at building web apps! Try one of these:\n• "Create a weather app"\n• "Build a todo list"\n• "Make a portfolio website"\n• "Create a landing page"\n• "Build a quiz app"\n• "Create a login page"\n• "Make a 3-page website"\n\nOr describe what you want and I'll do my best to build it!`,
     actions: [],
   };
 }

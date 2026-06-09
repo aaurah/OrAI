@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { projectsTable, filesTable, deploymentsTable } from "@workspace/db";
-import { eq, desc, count } from "drizzle-orm";
+import { eq, desc, count, and } from "drizzle-orm";
 import {
   CreateProjectBody,
   UpdateProjectBody,
@@ -129,6 +129,87 @@ router.delete("/projects/:id", async (req, res) => {
     res.status(204).send();
   } catch (err) {
     res.status(500).json({ error: "Failed to delete project" });
+  }
+});
+
+// ── Preview: serve project files from DB ──────────────────────────────────
+
+const MIME: Record<string, string> = {
+  html: "text/html; charset=utf-8",
+  css: "text/css; charset=utf-8",
+  js: "text/javascript; charset=utf-8",
+  mjs: "text/javascript; charset=utf-8",
+  ts: "text/typescript; charset=utf-8",
+  json: "application/json",
+  svg: "image/svg+xml",
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  gif: "image/gif",
+  ico: "image/x-icon",
+  txt: "text/plain; charset=utf-8",
+  xml: "application/xml",
+  md: "text/markdown; charset=utf-8",
+};
+
+router.get("/projects/:id/preview", async (req, res) => {
+  try {
+    const projectId = Number(req.params.id);
+    const [indexFile] = await db
+      .select()
+      .from(filesTable)
+      .where(and(eq(filesTable.projectId, projectId), eq(filesTable.name, "index.html")));
+
+    if (!indexFile || !indexFile.content) {
+      res
+        .status(200)
+        .setHeader("Content-Type", "text/html; charset=utf-8")
+        .send(`<!DOCTYPE html><html><head><meta charset="UTF-8"/>
+<title>No Preview</title>
+<style>
+body{font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;
+height:100vh;margin:0;background:#0d1117;color:#8b949e;}
+.box{text-align:center;padding:40px;}
+h2{color:#f0f6fc;margin-bottom:8px;}
+p{margin:4px 0;font-size:14px;}
+.hint{margin-top:16px;background:#161b22;border:1px solid #30363d;border-radius:8px;
+padding:12px 20px;font-size:13px;color:#58a6ff;}
+</style></head><body><div class="box">
+<h2>No Preview Available</h2>
+<p>Your project doesn't have an <code>index.html</code> yet.</p>
+<p class="hint">💡 Ask the AI to create a project, or add an index.html file.</p>
+</div></body></html>`);
+      return;
+    }
+
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.setHeader("X-Frame-Options", "SAMEORIGIN");
+    res.send(indexFile.content);
+  } catch {
+    res.status(500).send("Preview error");
+  }
+});
+
+router.get("/projects/:id/preview/*filename", async (req, res) => {
+  try {
+    const projectId = Number(req.params.id);
+    const filename = req.params.filename as string;
+    const ext = filename.split(".").pop()?.toLowerCase() ?? "";
+
+    const [file] = await db
+      .select()
+      .from(filesTable)
+      .where(and(eq(filesTable.projectId, projectId), eq(filesTable.name, filename)));
+
+    if (!file) {
+      res.status(404).send(`/* ${filename} not found */`);
+      return;
+    }
+
+    res.setHeader("Content-Type", MIME[ext] ?? "text/plain; charset=utf-8");
+    res.send(file.content || "");
+  } catch {
+    res.status(500).send("Error serving file");
   }
 });
 
