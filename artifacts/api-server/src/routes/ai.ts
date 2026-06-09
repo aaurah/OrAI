@@ -471,8 +471,24 @@ a:hover { text-decoration: underline; }
     };
   }
 
+  // ── Preview intent ────────────────────────────────────────────────────────
+  if (/\bpreview\b|show me|see it live|view it|how does it look|open it/.test(msg)) {
+    const hasHtml = existingFiles.some(f => f.name.endsWith(".html"));
+    if (!hasHtml) {
+      return {
+        reply: `The Preview tab shows your project's HTML output. This project doesn't have an \`index.html\` yet, so there's nothing to render.\n\nSay **"Create a web app"** and I'll build a full HTML/CSS/JS project you can preview instantly!`,
+        actions: [],
+      };
+    }
+    return {
+      reply: `Tap the **Preview** tab (monitor icon) to see your project live! It renders \`index.html\` directly in the browser. Hit the refresh icon in that tab to reload after changes.`,
+      actions: [],
+    };
+  }
+
   // ── Edit / fix intent with existing files ─────────────────────────────────
-  if (/fix|edit|improve|update|refactor|change|modify/.test(msg) && existingFiles.length > 0) {
+  // Require the edit verb to be the primary action (start of message, not buried inside "I don't want to change X")
+  if (/^(?:please\s+)?(?:fix|edit|improve|update|refactor|change|modify)\b|(?:can you|could you|help me)\s+(?:fix|edit|improve|update|refactor|change|modify)\b/.test(msg) && existingFiles.length > 0) {
     const target = existingFiles.find(f => msg.includes(f.name.toLowerCase()))
                 ?? existingFiles.find(f => currentFile && f.name === currentFile)
                 ?? existingFiles.find(f => f.name === "style.css");
@@ -1262,9 +1278,20 @@ button:hover { background: #4f46e5; }
   }
 
   // ── Smart default ──────────────────────────────────────────────────────────
-  // If there are existing files, guide the user towards useful actions
   if (existingFiles.length > 0) {
     const fileNames = existingFiles.map(f => f.name).join(", ");
+    const hasHtml = existingFiles.some(f => f.name.endsWith(".html"));
+    const hasTs   = existingFiles.some(f => f.name.endsWith(".ts") || f.name.endsWith(".tsx"));
+    const hasPy   = existingFiles.some(f => f.name.endsWith(".py"));
+
+    if (!hasHtml && (hasTs || hasPy)) {
+      const lang = hasTs ? "TypeScript" : "Python";
+      return {
+        reply: `Your project has: **${fileNames}**\n\nThis looks like a **${lang}** project. It can't be previewed directly (no \`index.html\`), but I can:\n• **"Add a function that..."** — write new code\n• **"Create a REST API"** — build Express/Fastify endpoints\n• **"Create a web frontend"** — add HTML/CSS/JS so you can preview it\n• **"Fix the error in..."** — debug issues\n• **"Convert this to a web app"** — wrap in a browser-friendly UI\n\nWhat would you like me to do?`,
+        actions: [],
+      };
+    }
+
     return {
       reply: `Your project has: **${fileNames}**\n\nHere's what I can do:\n• **"Redesign"** — improve the look and layout\n• **"Make it dark mode"** — switch to a dark theme\n• **"Add a contact form"** — add a new section\n• **"Change colors to blue"** — restyle with a different palette\n• **"Add animations"** — make it feel more dynamic\n\nOr describe exactly what you want changed!`,
       actions: [],
