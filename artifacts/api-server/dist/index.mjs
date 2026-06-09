@@ -58230,21 +58230,200 @@ What would you like?`,
       actions: []
     };
   }
+  if (/^(yes|yeah|yep|yup|ok|okay|sure|go ahead|do it|please do|proceed|sounds good|yes please|alright|let's do it|go for it|do that|update it|update the project|apply it|make it|let's go|do this)[\s!.]*$/.test(msg)) {
+    const fileNames = existingFiles.map((f) => f.name).join(", ") || "no files yet";
+    const hasHtml = existingFiles.some((f) => f.name.endsWith(".html"));
+    if (hasHtml) {
+      return {
+        reply: `Ready to edit! Tell me exactly what to add or change:
+\u2022 "Add a search bar"
+\u2022 "Add dark mode toggle"
+\u2022 "Add a footer"
+\u2022 "Change colors to blue"
+\u2022 "Add a contact form"
+\u2022 "Make the font bigger"
+
+I'll modify the files directly.`,
+        actions: []
+      };
+    }
+    return {
+      reply: `Sure! Tell me what you'd like to do with **${fileNames}**.`,
+      actions: []
+    };
+  }
   if (existingFiles.length > 0) {
     const fileNames = existingFiles.map((f) => f.name).join(", ");
     const hasHtml = existingFiles.some((f) => f.name.endsWith(".html"));
     const hasTs = existingFiles.some((f) => f.name.endsWith(".ts") || f.name.endsWith(".tsx"));
     const hasPy = existingFiles.some((f) => f.name.endsWith(".py"));
     if (/\b(add|give|include|attach|append|put)\b/.test(msg) || /\bmake\b/.test(msg) && !/\b(make a new|make me a new|start a new|make an? (whole|entire|brand))\b/.test(msg)) {
+      if (hasHtml) {
+        const htmlFile = existingFiles.find((f) => f.name === "index.html") ?? existingFiles.find((f) => f.name.endsWith(".html"));
+        const cssFile = existingFiles.find((f) => f.name.endsWith(".css"));
+        if (/search\s*(bar|box|input|button|field|text|option|form|feature)?/.test(msg)) {
+          if (htmlFile?.content) {
+            const searchHtml = `
+  <!-- Search bar -->
+  <div class="search-bar" style="display:flex;justify-content:center;padding:16px 12px;gap:8px">
+    <input id="searchInput" type="search" placeholder="Search..." style="padding:10px 16px;border:2px solid #e2e8f0;border-radius:8px;font-size:0.95rem;outline:none;min-width:220px"/>
+    <button onclick="doSearch()" style="padding:10px 16px;background:#6366f1;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600">\u{1F50D} Search</button>
+  </div>`;
+            const searchJs = `
+function doSearch() {
+  const q = document.getElementById('searchInput').value.toLowerCase().trim();
+  if (!q) return;
+  const matches = document.querySelectorAll('p,h1,h2,h3,h4,li,span');
+  matches.forEach(el => {
+    el.style.outline = el.textContent.toLowerCase().includes(q) ? '2px solid #6366f1' : '';
+  });
+}
+document.getElementById('searchInput').addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
+`;
+            let newHtml = htmlFile.content;
+            if (newHtml.includes("<body>")) {
+              newHtml = newHtml.replace("<body>", "<body>" + searchHtml);
+            } else {
+              newHtml = newHtml.replace("</body>", searchHtml + "\n</body>");
+            }
+            const hasScript = /<script\b/i.test(newHtml);
+            if (!hasScript) {
+              newHtml = newHtml.replace("</body>", `  <script>${searchJs}</script>
+</body>`);
+            } else {
+              newHtml = newHtml.replace("</body>", `  <script>${searchJs}</script>
+</body>`);
+            }
+            const actions = [{ type: "edit_file", filename: htmlFile.name, content: newHtml }];
+            return { reply: `Added a search bar to your project. It highlights matching elements as you type and supports pressing Enter to search.`, actions };
+          }
+        }
+        if (/dark\s*(mode|theme|toggle)/.test(msg)) {
+          if (htmlFile?.content) {
+            const toggleBtn = `
+  <button id="darkToggle" onclick="toggleDark()" style="position:fixed;top:12px;right:12px;z-index:999;padding:8px 14px;background:#1e293b;color:#f1f5f9;border:none;border-radius:8px;cursor:pointer;font-size:13px">\u{1F319} Dark</button>`;
+            const darkJs = `
+function toggleDark() {
+  const isDark = document.body.classList.toggle('dark-mode');
+  document.getElementById('darkToggle').textContent = isDark ? '\u2600\uFE0F Light' : '\u{1F319} Dark';
+  localStorage.setItem('theme', isDark ? 'dark' : 'light');
+}
+if (localStorage.getItem('theme') === 'dark') toggleDark();
+`;
+            const darkCss = `
+/* Dark mode */
+body.dark-mode { background: #0f172a !important; color: #e2e8f0 !important; }
+body.dark-mode * { border-color: #334155 !important; }
+body.dark-mode input, body.dark-mode textarea { background: #1e293b !important; color: #e2e8f0 !important; }
+body.dark-mode h1,body.dark-mode h2,body.dark-mode h3 { color: #f1f5f9 !important; }
+body.dark-mode p,body.dark-mode span,body.dark-mode li { color: #94a3b8 !important; }
+body.dark-mode .card, body.dark-mode .box, body.dark-mode [class*=-card] { background: #1e293b !important; }
+`;
+            let newHtml = htmlFile.content;
+            newHtml = newHtml.replace("</body>", toggleBtn + `
+  <script>${darkJs}</script>
+</body>`);
+            const actions = [{ type: "edit_file", filename: htmlFile.name, content: newHtml }];
+            if (cssFile?.content) {
+              actions.push({ type: "edit_file", filename: cssFile.name, content: cssFile.content + darkCss });
+            }
+            return { reply: `Added a dark mode toggle button (fixed to the top-right corner). Click it to switch \u2014 preference is saved in localStorage.`, actions };
+          }
+        }
+        if (/\bfooter\b/.test(msg)) {
+          if (htmlFile?.content) {
+            const footer = `
+  <footer style="text-align:center;padding:32px 24px;color:#64748b;font-size:0.85rem;border-top:1px solid #e2e8f0;margin-top:40px">
+    <p>\xA9 ${(/* @__PURE__ */ new Date()).getFullYear()} \xB7 Built with \u2615 and code</p>
+  </footer>`;
+            const newHtml = htmlFile.content.replace("</body>", footer + "\n</body>");
+            return { reply: `Added a footer to the page.`, actions: [{ type: "edit_file", filename: htmlFile.name, content: newHtml }] };
+          }
+        }
+        if (/back.?to.?top|scroll.?top|top.?button/.test(msg)) {
+          if (htmlFile?.content) {
+            const btn = `
+  <button id="topBtn" onclick="window.scrollTo({top:0,behavior:'smooth'})" style="display:none;position:fixed;bottom:20px;right:20px;padding:10px 14px;background:#6366f1;color:#fff;border:none;border-radius:50%;cursor:pointer;font-size:18px;z-index:999;box-shadow:0 2px 10px rgba(0,0,0,.2)">\u2191</button>
+  <script>window.onscroll=()=>{document.getElementById('topBtn').style.display=window.scrollY>200?'block':'none'};</script>`;
+            const newHtml = htmlFile.content.replace("</body>", btn + "\n</body>");
+            return { reply: `Added a "back to top" button that appears after scrolling down.`, actions: [{ type: "edit_file", filename: htmlFile.name, content: newHtml }] };
+          }
+        }
+        if (/loading|spinner|preloader/.test(msg)) {
+          if (htmlFile?.content) {
+            const spinner = `
+  <div id="loader" style="position:fixed;top:0;left:0;width:100%;height:100%;background:#fff;display:flex;align-items:center;justify-content:center;z-index:9999;transition:opacity .4s">
+    <div style="width:44px;height:44px;border:4px solid #e2e8f0;border-top-color:#6366f1;border-radius:50%;animation:spin 0.7s linear infinite"></div>
+  </div>
+  <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+  <script>window.addEventListener('load',()=>{const l=document.getElementById('loader');l.style.opacity='0';setTimeout(()=>l.remove(),400);});</script>`;
+            const newHtml = htmlFile.content.replace("<body>", "<body>" + spinner);
+            return { reply: `Added a loading spinner that shows briefly while the page loads, then fades out.`, actions: [{ type: "edit_file", filename: htmlFile.name, content: newHtml }] };
+          }
+        }
+        if (/contact\s*(form|section|page|us)/.test(msg)) {
+          if (htmlFile?.content) {
+            const form = `
+  <!-- Contact Form -->
+  <section style="max-width:480px;margin:40px auto;padding:0 16px">
+    <h2 style="margin-bottom:20px">Contact Us</h2>
+    <form onsubmit="submitContact(event)" style="display:flex;flex-direction:column;gap:14px">
+      <input type="text" placeholder="Your name" required style="padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:0.95rem"/>
+      <input type="email" placeholder="Email address" required style="padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:0.95rem"/>
+      <textarea placeholder="Your message" rows="4" required style="padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:0.95rem;resize:vertical"></textarea>
+      <button type="submit" style="padding:12px;background:#6366f1;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600">Send Message</button>
+    </form>
+  </section>
+  <script>function submitContact(e){e.preventDefault();alert('Message sent! Thanks for reaching out.');e.target.reset();}</script>`;
+            const newHtml = htmlFile.content.replace("</body>", form + "\n</body>");
+            return { reply: `Added a contact form section with name, email, and message fields.`, actions: [{ type: "edit_file", filename: htmlFile.name, content: newHtml }] };
+          }
+        }
+        if (/newsletter|email.*(sign|sub)|subscribe|signup/.test(msg)) {
+          if (htmlFile?.content) {
+            const nl = `
+  <!-- Newsletter signup -->
+  <section style="text-align:center;padding:40px 24px;background:#f8fafc;border-top:1px solid #e2e8f0;margin-top:40px">
+    <h3 style="margin-bottom:8px">Stay in the loop</h3>
+    <p style="color:#64748b;margin-bottom:16px">Get updates delivered straight to your inbox.</p>
+    <form onsubmit="subscribeNL(event)" style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+      <input type="email" placeholder="you@example.com" required style="padding:10px 16px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:0.95rem;min-width:200px"/>
+      <button type="submit" style="padding:10px 20px;background:#6366f1;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600">Subscribe</button>
+    </form>
+  </section>
+  <script>function subscribeNL(e){e.preventDefault();alert('\u{1F389} Subscribed! Thanks for joining.');e.target.reset();}</script>`;
+            const newHtml = htmlFile.content.replace("</body>", nl + "\n</body>");
+            return { reply: `Added a newsletter signup section at the bottom of the page.`, actions: [{ type: "edit_file", filename: htmlFile.name, content: newHtml }] };
+          }
+        }
+        if (/\b(navbar|navigation|nav\s*bar|header|nav\s*menu)\b/.test(msg)) {
+          if (htmlFile?.content) {
+            const nav = `
+  <nav style="display:flex;align-items:center;justify-content:space-between;padding:14px 24px;background:#fff;border-bottom:1px solid #e2e8f0;position:sticky;top:0;z-index:100;box-shadow:0 1px 4px rgba(0,0,0,.06)">
+    <span style="font-weight:700;font-size:1.1rem">\u{1F310} My Site</span>
+    <div style="display:flex;gap:20px">
+      <a href="#" style="color:#64748b;text-decoration:none;font-size:0.9rem">Home</a>
+      <a href="#" style="color:#64748b;text-decoration:none;font-size:0.9rem">About</a>
+      <a href="#" style="color:#64748b;text-decoration:none;font-size:0.9rem">Contact</a>
+    </div>
+  </nav>`;
+            const newHtml = htmlFile.content.replace("<body>", "<body>" + nav);
+            return { reply: `Added a sticky navigation bar at the top with Home, About, and Contact links.`, actions: [{ type: "edit_file", filename: htmlFile.name, content: newHtml }] };
+          }
+        }
+      }
       return {
-        reply: `Got it \u2014 you want to update your project (**${fileNames}**). Be specific about what to change:
+        reply: `I can add these features to your existing project right now:
 \u2022 "Add a search bar"
-\u2022 "Add dark mode"
+\u2022 "Add dark mode toggle"
+\u2022 "Add a footer"
+\u2022 "Add a navbar"
 \u2022 "Add a contact form"
-\u2022 "Fix the CSS styling"
-\u2022 "Change the colors to blue"
+\u2022 "Add a newsletter signup"
+\u2022 "Add a back-to-top button"
+\u2022 "Add a loading spinner"
 
-I'll edit the files directly!`,
+For custom features (charts, APIs, etc.), connect an OpenAI key in Settings for full AI support.`,
         actions: []
       };
     }
@@ -58267,8 +58446,9 @@ What would you like me to do?`,
 
 Here's what I can do:
 \u2022 **"Redesign"** \u2014 improve the look and layout
-\u2022 **"Make it dark mode"** \u2014 switch to a dark theme
-\u2022 **"Add a section"** \u2014 add new content
+\u2022 **"Add dark mode toggle"** \u2014 add a dark/light switch button
+\u2022 **"Add a search bar"** \u2014 add search functionality
+\u2022 **"Add a footer"** \u2014 add a footer section
 \u2022 **"Change colors to blue"** \u2014 restyle with a different palette
 \u2022 **"Fix the CSS"** \u2014 repair styling issues
 
