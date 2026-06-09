@@ -5,6 +5,8 @@ tmp
 dist
 # dist intentionally tracked so production server can serve pre-built assets
 !artifacts/cloud-ide/dist
+!artifacts/api-server/dist
+artifacts/api-server/dist/*.map
 out-tsc
 *.tsbuildinfo
 .expo
