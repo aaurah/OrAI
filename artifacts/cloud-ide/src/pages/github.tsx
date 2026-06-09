@@ -589,9 +589,12 @@ export default function GitHubPage() {
         .filter((f: any) => {
           if (f.type !== "blob" || !f.path) return false;
           const parts = f.path.split("/");
+          if (parts.length > 3) return false; // skip deeply-nested files (dist, build outputs)
           const name = parts[parts.length - 1];
           const topDir = parts[0];
-          return !SKIP_NAMES.has(name) && !SKIP_TOP_DIRS.has(topDir);
+          // Skip minified/compiled bundles by extension
+          if (/\.(min\.js|min\.css|mjs\.map|js\.map|css\.map)$/.test(name)) return false;
+          return !SKIP_NAMES.has(name) && !SKIP_TOP_DIRS.has(topDir) && !name.startsWith(".");
         })
         .slice(0, 50);
 
@@ -617,11 +620,13 @@ export default function GitHubPage() {
           const contentRes = await ghApi(`${API}/repos/${selectedRepo.owner.login}/${selectedRepo.name}/contents/${file.path}`);
           if (contentRes?.content) {
             const decoded = atob(contentRes.content.replace(/\s/g, ""));
+            // Use full path as name for nested files to avoid basename collisions
+            const displayName = file.path.includes("/") ? file.path : (file.path.split("/").pop() ?? file.path);
             await fetch(`/api/projects/${proj.id}/files`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
-                name: file.path.split("/").pop() ?? file.path,
+                name: displayName,
                 path: `/${file.path}`,
                 type: "file",
                 content: decoded,

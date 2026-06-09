@@ -202,15 +202,6 @@ export default function IDE() {
     import("@monaco-editor/react").then((m) => setMonacoEditor(() => m.default));
   }, []);
 
-  // On mount: clean up any duplicate files so the right content is shown
-  useEffect(() => {
-    if (!projectId) return;
-    fetch(`/api/projects/${projectId}/files/dedup`, { method: "POST" })
-      .then(() => queryClient.invalidateQueries({ queryKey: getListFilesQueryKey(projectId) }))
-      .catch(() => {/* ignore */});
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId]);
-
   // Auto-select first file
   useEffect(() => {
     if (files && files.length > 0 && !selectedFileId) {
