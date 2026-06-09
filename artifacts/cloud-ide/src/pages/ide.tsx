@@ -258,9 +258,8 @@ export default function IDE() {
     setMobileTab("editor");
   }
 
-  function handleAiSend() {
-    if (!aiInput.trim() || aiChat.isPending) return;
-    const msg = aiInput.trim();
+  function sendAiMessage(msg: string) {
+    if (!msg.trim() || aiChat.isPending) return;
     setAiInput("");
     setAiMessages(prev => [...prev, { role: "user", content: msg }]);
 
@@ -274,13 +273,9 @@ export default function IDE() {
     }, {
       onSuccess: (data) => {
         const actions: ExecutedAction[] = (data as any).actions ?? [];
-
-        // Refresh file list if any file was touched
         if (actions.length > 0) {
           queryClient.invalidateQueries({ queryKey: getListFilesQueryKey(projectId) });
         }
-
-        // Auto-open the first created or edited file
         const firstFileAction = actions.find(
           (a): a is Extract<ExecutedAction, { type: "created" | "edited" }> =>
             a.type === "created" || a.type === "edited"
@@ -289,9 +284,8 @@ export default function IDE() {
           setTimeout(() => {
             setSelectedFileId(firstFileAction.fileId);
             setMobileTab("editor");
-          }, 300); // slight delay so the query has time to settle
+          }, 300);
         }
-
         setAiMessages(prev => [...prev, {
           role: "assistant",
           content: data.reply,
@@ -305,6 +299,25 @@ export default function IDE() {
         }]);
       },
     });
+  }
+
+  // Auto-trigger AI if user entered a build prompt on the new-project page
+  useEffect(() => {
+    const key = `ide_autostart_${projectId}`;
+    const prompt = localStorage.getItem(key);
+    if (prompt) {
+      localStorage.removeItem(key);
+      // Small delay so the IDE is fully mounted
+      const timer = setTimeout(() => sendAiMessage(prompt), 800);
+      return () => clearTimeout(timer);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId]);
+
+  function handleAiSend() {
+    if (!aiInput.trim() || aiChat.isPending) return;
+    const msg = aiInput.trim();
+    sendAiMessage(msg);
   }
 
   function selectFile(id: number) {
