@@ -460,24 +460,39 @@ export default function IDE() {
       {/* Messages */}
       <div className="flex-1 overflow-auto ide-scroll p-3 space-y-3">
         {aiMessages.length === 0 && (
-          <div className="text-xs text-muted-foreground text-center pt-6 px-2 space-y-3">
+          <div className="text-[12px] text-muted-foreground text-center pt-4 px-2 space-y-3">
             <div className="w-10 h-10 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center mx-auto">
               <Sparkles size={18} className="text-primary" />
             </div>
-            <p className="font-medium text-foreground">AI Coding Agent</p>
-            <p className="opacity-70">I can create, edit, and delete files directly. Try:</p>
+            <div>
+              <p className="font-semibold text-foreground text-sm">AI Coding Agent</p>
+              <p className="opacity-60 mt-0.5">
+                {files && files.length > 0
+                  ? `I can see ${files.length} file${files.length !== 1 ? "s" : ""} in your project. What would you like to do?`
+                  : "I can build complete web apps for you. Try one of these:"}
+              </p>
+            </div>
             <div className="space-y-1 text-left">
-              {[
-                "Create a weather app 7 day forecast",
-                "Build a todo list app",
-                "Make a calculator",
-                "Edit this file to add dark mode",
-                "Delete old.js",
-              ].map(s => (
+              {(files && files.length > 0
+                ? [
+                    "Add a search bar",
+                    "Add dark mode toggle",
+                    "Redesign the UI",
+                    "Add a footer",
+                    "Add a contact form",
+                  ]
+                : [
+                    "Create a weather app with 7 day forecast",
+                    "Build a todo list app",
+                    "Make a calculator",
+                    "Create a portfolio website",
+                    "Build a quiz app",
+                  ]
+              ).map(s => (
                 <button
                   key={s}
-                  onClick={() => setAiInput(s)}
-                  className="w-full text-left px-2.5 py-1.5 rounded-md bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors border border-border"
+                  onClick={() => sendAiMessage(s)}
+                  className="w-full text-left px-2.5 py-1.5 rounded-md bg-muted/50 hover:bg-primary/10 hover:border-primary/30 text-muted-foreground hover:text-foreground transition-colors border border-border"
                 >
                   {s}
                 </button>
@@ -487,17 +502,22 @@ export default function IDE() {
         )}
 
         {aiMessages.map((msg, i) => (
-          <div key={i} className={`text-xs ${msg.role === "user" ? "text-right" : ""}`}>
-            <div className={`inline-block max-w-full text-left rounded-lg px-3 py-2 ${
+          <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+            {msg.role === "assistant" && (
+              <div className="w-5 h-5 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center mr-1.5 mt-0.5 shrink-0">
+                <Sparkles size={10} className="text-primary" />
+              </div>
+            )}
+            <div className={`max-w-[88%] rounded-2xl px-3 py-2 text-[12.5px] leading-relaxed ${
               msg.role === "user"
-                ? "bg-primary text-primary-foreground"
-                : "bg-muted text-foreground"
+                ? "bg-primary text-primary-foreground rounded-br-sm"
+                : "bg-muted text-foreground rounded-bl-sm"
             }`}>
               {msg.imageUrl && (
                 <img src={msg.imageUrl} alt="attachment" className="rounded-md mb-1.5 max-w-[200px] max-h-[150px] object-cover" />
               )}
               <p
-                className="break-words leading-relaxed"
+                className="break-words"
                 dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }}
               />
               {msg.actions && msg.actions.length > 0 && (
@@ -508,10 +528,14 @@ export default function IDE() {
         ))}
 
         {aiChat.isPending && (
-          <div className="text-xs">
-            <div className="inline-flex items-center gap-2 bg-muted rounded-lg px-3 py-2 text-muted-foreground">
-              <Loader2 size={12} className="animate-spin" />
-              <span>Working…</span>
+          <div className="flex justify-start">
+            <div className="w-5 h-5 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center mr-1.5 mt-0.5 shrink-0">
+              <Sparkles size={10} className="text-primary" />
+            </div>
+            <div className="bg-muted rounded-2xl rounded-bl-sm px-3 py-2.5 flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/60 animate-bounce" style={{ animationDelay: "0ms" }} />
+              <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/60 animate-bounce" style={{ animationDelay: "150ms" }} />
+              <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/60 animate-bounce" style={{ animationDelay: "300ms" }} />
             </div>
           </div>
         )}
@@ -520,6 +544,12 @@ export default function IDE() {
 
       {/* Input */}
       <div className="p-2 border-t border-border shrink-0">
+        {selectedFile && (
+          <div className="flex items-center gap-1 mb-1.5 text-[10px] text-muted-foreground px-0.5">
+            <FileIcon size={9} />
+            <span className="truncate">Using <span className="text-foreground font-medium">{selectedFile.name}</span> as context</span>
+          </div>
+        )}
         {attachedImage && (
           <div className="flex items-center gap-1.5 mb-1.5 bg-muted/50 rounded-md px-2 py-1">
             <img src={attachedImage.dataUrl} alt="preview" className="w-8 h-8 rounded object-cover shrink-0" />

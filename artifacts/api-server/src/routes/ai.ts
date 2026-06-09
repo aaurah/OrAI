@@ -544,28 +544,127 @@ a:hover { text-decoration: underline; }
     };
   }
 
+  // ── List files ────────────────────────────────────────────────────────────
+  if (/\b(list|show|what).*(files?|code|have|project)\b|\bfiles.*\b(list|show|have)\b|\bwhat.*files?\b/.test(msg)) {
+    if (existingFiles.length === 0) {
+      return { reply: `Your project has no files yet. Ask me to build something — for example:\n• "Create a weather app"\n• "Build a todo list"\n• "Make a portfolio website"`, actions: [] };
+    }
+    const fileList = existingFiles.map(f => `• **${f.name}**`).join("\n");
+    return { reply: `Your project has ${existingFiles.length} file${existingFiles.length !== 1 ? "s" : ""}:\n\n${fileList}\n\nClick any file in the sidebar to open it, or ask me to edit one!`, actions: [] };
+  }
+
+  // ── Explain / summarize current file ─────────────────────────────────────
+  if (/\b(explain|summarize|describe|what does|what.?s in|tell me about|analyse|analyze|overview|walk me through|what is this)\b/.test(msg)) {
+    const file = currentFile ? existingFiles.find(f => f.name === currentFile) : null;
+    if (file?.content) {
+      const ext  = file.name.split(".").pop() ?? "";
+      const lines = file.content.split("\n").length;
+      const isHtml = ext === "html";
+      const isCss  = ext === "css";
+      const isJs   = ext === "js" || ext === "ts";
+      const hasClasses = isCss && (file.content.match(/\.[a-z][-a-z]*/g) ?? []).length;
+      const hasFunctions = isJs && (file.content.match(/function\s+\w+|const\s+\w+\s*=/g) ?? []).length;
+      const tagMatches   = isHtml ? (file.content.match(/<(section|article|header|footer|nav|main|div class)/g) ?? []) : [];
+      const summary = isHtml
+        ? `**${file.name}** (${lines} lines) — HTML page with ${tagMatches.length > 0 ? `sections including ${[...new Set(tagMatches.map(t => t.replace(/<|>/g, "").split(" ")[0]))].join(", ")}` : "standard HTML structure"}.`
+        : isCss
+        ? `**${file.name}** (${lines} lines) — stylesheet with ~${hasClasses} CSS rules/selectors.`
+        : `**${file.name}** (${lines} lines) — ${isJs ? `JavaScript/TypeScript with ~${hasFunctions} functions/variables.` : `${ext.toUpperCase()} file.`}`;
+      return {
+        reply: `${summary}\n\nAsk me to make any change — for example:\n• "Add dark mode"\n• "Redesign the layout"\n• "Add a search bar"`,
+        actions: [],
+      };
+    }
+    if (currentFile) {
+      return { reply: `I can see \`${currentFile}\` is open, but it appears to be empty. Ask me to add some content!`, actions: [] };
+    }
+    return { reply: `Open a file in the editor and I'll explain what it does.`, actions: [] };
+  }
+
+  // ── How to run / preview ──────────────────────────────────────────────────
+  if (/\b(how.*(run|start|launch|execute|use)|run.*this|start.*this|launch.*this)\b/.test(msg)) {
+    const hasHtmlFile = existingFiles.some(f => f.name.endsWith(".html"));
+    const hasPkgJson  = existingFiles.some(f => f.name === "package.json");
+    const hasPy       = existingFiles.some(f => f.name.endsWith(".py"));
+    if (hasHtmlFile) {
+      return { reply: `Click the **Preview** button in the top toolbar to run your app! It renders \`index.html\` directly in the browser. No server needed — just hit Preview after any change.`, actions: [] };
+    }
+    if (hasPkgJson) {
+      return { reply: `This is a Node.js project. To run it locally:\n1. Install dependencies: \`npm install\`\n2. Start the app: \`npm start\` or \`npm run dev\`\n\nThe **Preview** tab shows the project file tree and README instead of a live server preview here.`, actions: [] };
+    }
+    if (hasPy) {
+      return { reply: `This is a Python project. To run it locally:\n• \`python main.py\` (or whichever is your entry file)\n\nI can add code to any file — just ask!`, actions: [] };
+    }
+    return { reply: `Click the **Preview** button in the toolbar to see your project live. If you have no files yet, ask me to build something first!`, actions: [] };
+  }
+
+  // ── Change color to X ─────────────────────────────────────────────────────
+  if (/\b(change|make|set|use|switch).*(color|theme|accent|primary).*\b(to|into|=)?\s*(blue|red|green|purple|orange|pink|yellow|gray|grey|teal|cyan|indigo|violet|rose|amber|lime|emerald)\b|\b(blue|red|green|purple|orange|pink|yellow|teal|cyan|indigo|violet|rose|amber|lime|emerald)\s+(color|theme|accent|design)\b/.test(msg)) {
+    const colorMap: Record<string, string> = { blue: "#3b82f6", red: "#ef4444", green: "#22c55e", purple: "#8b5cf6", orange: "#f97316", pink: "#ec4899", yellow: "#eab308", gray: "#6b7280", grey: "#6b7280", teal: "#14b8a6", cyan: "#06b6d4", indigo: "#6366f1", violet: "#7c3aed", rose: "#f43f5e", amber: "#f59e0b", lime: "#84cc16", emerald: "#10b981" };
+    const colorName = Object.keys(colorMap).find(c => msg.includes(c)) ?? "blue";
+    const hex = colorMap[colorName];
+    const cssFile = existingFiles.find(f => f.name === "style.css");
+    if (cssFile?.content) {
+      const updated = cssFile.content
+        .replace(/--primary:\s*#[0-9a-fA-F]{3,8}/g, `--primary: ${hex}`)
+        .replace(/(background(-color)?:\s*)#6366f1|#3b82f6|#ef4444|#22c55e|#8b5cf6|#f97316|#ec4899/g, `$1${hex}`);
+      return {
+        reply: `Changed the primary color to **${colorName}** (${hex}) in style.css.`,
+        actions: [{ type: "edit_file", filename: "style.css", content: updated }],
+      };
+    }
+    return { reply: `I'd need a \`style.css\` file to change the color. Ask me to redesign the UI and I'll use ${colorName} as the accent color!`, actions: [] };
+  }
+
+  // ── Font size change ──────────────────────────────────────────────────────
+  if (/\b(font|text).*(bigger|larger|smaller|size|increase|decrease)|(bigger|larger|smaller)\s*(font|text)|(increase|decrease).*font\b/.test(msg)) {
+    const bigger = /bigger|larger|increase/.test(msg);
+    const cssFile = existingFiles.find(f => f.name === "style.css");
+    if (cssFile?.content) {
+      const updated = cssFile.content.replace(
+        /font-size:\s*([\d.]+)(rem|em|px)/g,
+        (_, val, unit) => `font-size: ${unit === "px" ? Math.round(Number(val) * (bigger ? 1.15 : 0.87)) : (Number(val) + (bigger ? 0.1 : -0.1)).toFixed(2)}${unit}`
+      );
+      return {
+        reply: `Made the font ${bigger ? "larger" : "smaller"} across style.css.`,
+        actions: [{ type: "edit_file", filename: "style.css", content: updated }],
+      };
+    }
+    return { reply: `No style.css found. Ask me to build a project first and I'll set whatever font size you want!`, actions: [] };
+  }
+
   // ── Edit / fix intent with existing files ─────────────────────────────────
   // Require the edit verb to be the primary action (start of message, not buried inside "I don't want to change X")
   if (/^(?:please\s+)?(?:fix|edit|improve|update|refactor|change|modify)\b|(?:can you|could you|help me)\s+(?:fix|edit|improve|update|refactor|change|modify)\b/.test(msg) && existingFiles.length > 0) {
+    // For dark mode: always prefer CSS file
+    if (/dark mode|dark theme/.test(msg)) {
+      const cssFile = existingFiles.find(f => f.name === "style.css") ?? existingFiles.find(f => f.name.endsWith(".css"));
+      if (cssFile?.content) {
+        return {
+          reply: `Added dark mode to **${cssFile.name}**. Hit Preview to see it!`,
+          actions: [{ type: "edit_file", filename: cssFile.name, content: cssFile.content
+            .replace(/background:\s*#(?:fff|white|f8fafc|f0f4f8|f1f5f9|f0f0f0)[^;]*/gi, "background: #0d1117")
+            .replace(/color:\s*#(?:000|111|222|333|1e293b|0f172a)[^;]*/gi, "color: #e6edf3") +
+            "\n/* Dark mode */\nbody { background: #0d1117 !important; color: #e6edf3 !important; }\n:root { --bg: #0d1117; --surface: #161b22; --text: #e6edf3; --muted: #8b949e; --border: #30363d; }"
+          }],
+        };
+      }
+      const htmlFile = existingFiles.find(f => f.name.endsWith(".html"));
+      if (htmlFile?.content) {
+        return {
+          reply: `Added dark mode styles to **${htmlFile.name}** directly.`,
+          actions: [{ type: "edit_file", filename: htmlFile.name, content: htmlFile.content.replace("</head>", `  <style>\n  body { background: #0d1117 !important; color: #e6edf3 !important; }\n  * { box-sizing: border-box; }\n  </style>\n</head>`) }],
+        };
+      }
+    }
+
     const target = existingFiles.find(f => msg.includes(f.name.toLowerCase()))
                 ?? existingFiles.find(f => currentFile && f.name === currentFile)
                 ?? existingFiles.find(f => f.name === "style.css");
 
-    if (target && target.content) {
-      if (/dark mode|dark theme/.test(msg)) {
-        return {
-          reply: `Added dark mode to ${target.name}.`,
-          actions: [{ type: "edit_file", filename: target.name, content: target.content
-            .replace(/background:\s*#(?:fff|white|f8fafc|f0f4f8|f1f5f9|f0f0f0)[^;]*/gi, "background: #0d1117")
-            .replace(/color:\s*#(?:000|111|222|333|1e293b|0f172a)[^;]*/gi, "color: #e6edf3") +
-            "\n/* Dark mode override */\nbody { background: #0d1117 !important; color: #e6edf3 !important; }"
-          }],
-        };
-      }
-    }
     if (currentFile) {
       return {
-        reply: `I can see \`${currentFile}\` is open. Tell me exactly what to change — for example:\n• "Add dark mode"\n• "Change color to blue"\n• "Add a submit button"\n• "Add form validation"\n\nI'll edit the file directly.`,
+        reply: `I can see \`${currentFile}\` is open. Tell me exactly what to change — for example:\n• "Add dark mode"\n• "Change color to blue"\n• "Make the font bigger"\n• "Add a submit button"\n• "Add form validation"\n\nI'll edit the file directly.`,
         actions: [],
       };
     }
@@ -1287,7 +1386,7 @@ document.getElementById("signup").addEventListener("submit",e=>{e.preventDefault
   // ── Edit / fix current file ───────────────────────────────────────────────
   if ((msg.includes("fix") || msg.includes("edit") || msg.includes("improve") || msg.includes("update") || msg.includes("refactor")) && currentFile) {
     return {
-      reply: `I can see ${currentFile} in the editor. To make specific edits, please describe what change you want (e.g. "add dark mode", "fix the fetch error", "add a button"). I'll apply it directly.`,
+      reply: `I can see \`${currentFile}\` is open. Tell me what to change — for example:\n• "Add dark mode"\n• "Change color to blue"\n• "Make the font bigger"\n• "Fix the fetch error"\n• "Add a button"\n\nI'll apply it directly.`,
       actions: [],
     };
   }
@@ -1297,8 +1396,8 @@ document.getElementById("signup").addEventListener("submit",e=>{e.preventDefault
     const fileNames = existingFiles.map(f => f.name).join(", ") || "none yet";
     return {
       reply: existingFiles.length > 0
-        ? `I'm here to help! Your project currently has: **${fileNames}**.\n\nYou can ask me to:\n• **"Redesign the UI"** — better colors and layout\n• **"Fix the CSS"** — repair styling issues\n• **"Add dark mode"** — switch theme\n• **"Add a feature"** — describe what you want\n\nWhat would you like me to change?`
-        : `I'm here to help! I can create full web projects — try:\n• "Build a weather app"\n• "Create a todo list"\n• "Make a portfolio website"\n\nWhat would you like?`,
+        ? `Happy to help! Your project has: **${fileNames}**.\n\nTry asking me to:\n• **"Redesign the UI"** — fresh modern look\n• **"Add dark mode"** — dark color scheme\n• **"Add a search bar"** — working search feature\n• **"Change color to blue"** — swap the accent color\n\nWhat would you like?`
+        : `Happy to help! I can build complete web projects — try:\n• "Build a weather app"\n• "Create a todo list"\n• "Make a portfolio website"\n• "Build a quiz app"\n\nWhat would you like?`,
       actions: [],
     };
   }
