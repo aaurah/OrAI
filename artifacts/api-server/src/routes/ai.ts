@@ -1247,7 +1247,18 @@ document.getElementById("signup").addEventListener("submit",e=>{e.preventDefault
     };
   }
 
-  // ── Existing files: add-feature or smart default (BEFORE generic create) ───
+  // ── Question / error follow-up — never creates files ─────────────────────
+  if (/^(what|why|how|when|where|who|is|does|can|will|should|did)\b|^(what happened|why did|what went|what's wrong|what is|how do|how can|explain|tell me|show me what|i (don't|dont) understand)/.test(msg)) {
+    const fileNames = existingFiles.map(f => f.name).join(", ") || "none yet";
+    return {
+      reply: existingFiles.length > 0
+        ? `I'm here to help! Your project currently has: **${fileNames}**.\n\nYou can ask me to:\n• **"Redesign the UI"** — better colors and layout\n• **"Fix the CSS"** — repair styling issues\n• **"Add dark mode"** — switch theme\n• **"Add a feature"** — describe what you want\n\nWhat would you like me to change?`
+        : `I'm here to help! I can create full web projects — try:\n• "Build a weather app"\n• "Create a todo list"\n• "Make a portfolio website"\n\nWhat would you like?`,
+      actions: [],
+    };
+  }
+
+  // ── Existing files: always work with the project, never start over ─────────
   if (existingFiles.length > 0) {
     const fileNames = existingFiles.map(f => f.name).join(", ");
     const hasHtml = existingFiles.some(f => f.name.endsWith(".html"));
@@ -1256,9 +1267,9 @@ document.getElementById("signup").addEventListener("submit",e=>{e.preventDefault
 
     // "add/make/give/include X" = add a feature to the existing project
     if (/\b(add|give|include|attach|append|put)\b/.test(msg) ||
-        (/\bmake\b/.test(msg) && !/\b(make a|make an|make me a|make me an)\b/.test(msg))) {
+        (/\bmake\b/.test(msg) && !/\b(make a new|make me a new|start a new|make an? (whole|entire|brand))\b/.test(msg))) {
       return {
-        reply: `Got it — you want to add something to your project (**${fileNames}**). Tell me more specifically, for example:\n• "Add a dark mode toggle"\n• "Add location search to the weather app"\n• "Add a contact form"\n• "Add animations to the buttons"\n\nI'll edit the files directly!`,
+        reply: `Got it — you want to update your project (**${fileNames}**). Be specific about what to change:\n• "Add a search bar"\n• "Add dark mode"\n• "Add a contact form"\n• "Fix the CSS styling"\n• "Change the colors to blue"\n\nI'll edit the files directly!`,
         actions: [],
       };
     }
@@ -1266,21 +1277,22 @@ document.getElementById("signup").addEventListener("submit",e=>{e.preventDefault
     if (!hasHtml && (hasTs || hasPy)) {
       const lang = hasTs ? "TypeScript" : "Python";
       return {
-        reply: `Your project has: **${fileNames}**\n\nThis looks like a **${lang}** project. It can't be previewed directly (no \`index.html\`), but I can:\n• **"Add a function that..."** — write new code\n• **"Create a REST API"** — build Express/Fastify endpoints\n• **"Create a web frontend"** — add HTML/CSS/JS so you can preview it\n• **"Fix the error in..."** — debug issues\n\nWhat would you like me to do?`,
+        reply: `Your project has: **${fileNames}**\n\nThis looks like a **${lang}** project. It can't be previewed directly (no \`index.html\`), but I can:\n• **"Add a function that..."** — write new code\n• **"Create a web frontend"** — add HTML/CSS/JS so you can preview it\n• **"Fix the error in..."** — debug issues\n\nWhat would you like me to do?`,
         actions: [],
       };
     }
 
     return {
-      reply: `Your project has: **${fileNames}**\n\nHere's what I can do:\n• **"Redesign"** — improve the look and layout\n• **"Make it dark mode"** — switch to a dark theme\n• **"Add a contact form"** — add a new section\n• **"Change colors to blue"** — restyle with a different palette\n• **"Add animations"** — make it more dynamic\n\nOr describe exactly what you want changed!`,
+      reply: `Your project has: **${fileNames}**\n\nHere's what I can do:\n• **"Redesign"** — improve the look and layout\n• **"Make it dark mode"** — switch to a dark theme\n• **"Add a section"** — add new content\n• **"Change colors to blue"** — restyle with a different palette\n• **"Fix the CSS"** — repair styling issues\n\nOr describe exactly what you want changed!`,
       actions: [],
     };
   }
 
-  // ── Generic create intent (only when project has no files yet) ─────────────
-  const hasCreateVerb = /create|build|make|generate|write|new|start/.test(msg);
+  // ── Generic create intent (only when project has NO files yet) ─────────────
+  // Use word boundaries to avoid "happened" matching "app", etc.
+  const hasCreateVerb = /\b(create|build|make|generate|write|start)\b/.test(msg);
   const hasHtmlFile = /\.html/.test(msg);
-  const hasWebHint = /website|site|app|page|web/.test(msg);
+  const hasWebHint = /\b(website|site|app|page|web)\b/.test(msg);
 
   if (hasCreateVerb || hasHtmlFile || hasWebHint) {
     return {

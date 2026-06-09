@@ -58007,18 +58007,39 @@ document.getElementById("signup").addEventListener("submit",e=>{e.preventDefault
       actions: []
     };
   }
+  if (/^(what|why|how|when|where|who|is|does|can|will|should|did)\b|^(what happened|why did|what went|what's wrong|what is|how do|how can|explain|tell me|show me what|i (don't|dont) understand)/.test(msg)) {
+    const fileNames = existingFiles.map((f) => f.name).join(", ") || "none yet";
+    return {
+      reply: existingFiles.length > 0 ? `I'm here to help! Your project currently has: **${fileNames}**.
+
+You can ask me to:
+\u2022 **"Redesign the UI"** \u2014 better colors and layout
+\u2022 **"Fix the CSS"** \u2014 repair styling issues
+\u2022 **"Add dark mode"** \u2014 switch theme
+\u2022 **"Add a feature"** \u2014 describe what you want
+
+What would you like me to change?` : `I'm here to help! I can create full web projects \u2014 try:
+\u2022 "Build a weather app"
+\u2022 "Create a todo list"
+\u2022 "Make a portfolio website"
+
+What would you like?`,
+      actions: []
+    };
+  }
   if (existingFiles.length > 0) {
     const fileNames = existingFiles.map((f) => f.name).join(", ");
     const hasHtml = existingFiles.some((f) => f.name.endsWith(".html"));
     const hasTs = existingFiles.some((f) => f.name.endsWith(".ts") || f.name.endsWith(".tsx"));
     const hasPy = existingFiles.some((f) => f.name.endsWith(".py"));
-    if (/\b(add|give|include|attach|append|put)\b/.test(msg) || /\bmake\b/.test(msg) && !/\b(make a|make an|make me a|make me an)\b/.test(msg)) {
+    if (/\b(add|give|include|attach|append|put)\b/.test(msg) || /\bmake\b/.test(msg) && !/\b(make a new|make me a new|start a new|make an? (whole|entire|brand))\b/.test(msg)) {
       return {
-        reply: `Got it \u2014 you want to add something to your project (**${fileNames}**). Tell me more specifically, for example:
-\u2022 "Add a dark mode toggle"
-\u2022 "Add location search to the weather app"
+        reply: `Got it \u2014 you want to update your project (**${fileNames}**). Be specific about what to change:
+\u2022 "Add a search bar"
+\u2022 "Add dark mode"
 \u2022 "Add a contact form"
-\u2022 "Add animations to the buttons"
+\u2022 "Fix the CSS styling"
+\u2022 "Change the colors to blue"
 
 I'll edit the files directly!`,
         actions: []
@@ -58031,7 +58052,6 @@ I'll edit the files directly!`,
 
 This looks like a **${lang}** project. It can't be previewed directly (no \`index.html\`), but I can:
 \u2022 **"Add a function that..."** \u2014 write new code
-\u2022 **"Create a REST API"** \u2014 build Express/Fastify endpoints
 \u2022 **"Create a web frontend"** \u2014 add HTML/CSS/JS so you can preview it
 \u2022 **"Fix the error in..."** \u2014 debug issues
 
@@ -58045,17 +58065,17 @@ What would you like me to do?`,
 Here's what I can do:
 \u2022 **"Redesign"** \u2014 improve the look and layout
 \u2022 **"Make it dark mode"** \u2014 switch to a dark theme
-\u2022 **"Add a contact form"** \u2014 add a new section
+\u2022 **"Add a section"** \u2014 add new content
 \u2022 **"Change colors to blue"** \u2014 restyle with a different palette
-\u2022 **"Add animations"** \u2014 make it more dynamic
+\u2022 **"Fix the CSS"** \u2014 repair styling issues
 
 Or describe exactly what you want changed!`,
       actions: []
     };
   }
-  const hasCreateVerb = /create|build|make|generate|write|new|start/.test(msg);
+  const hasCreateVerb = /\b(create|build|make|generate|write|start)\b/.test(msg);
   const hasHtmlFile = /\.html/.test(msg);
-  const hasWebHint = /website|site|app|page|web/.test(msg);
+  const hasWebHint = /\b(website|site|app|page|web)\b/.test(msg);
   if (hasCreateVerb || hasHtmlFile || hasWebHint) {
     return {
       reply: "Created a starter HTML/CSS/JS project. Click **Preview** to see it live, then tell me what to change!",
