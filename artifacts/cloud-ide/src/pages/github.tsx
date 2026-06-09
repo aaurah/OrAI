@@ -582,29 +582,58 @@ export default function GitHubPage() {
       if (!tree?.tree) {
         throw new Error(tree?.message ?? "Failed to fetch repository file tree");
       }
+      // Files/dirs to always skip
       const SKIP_NAMES = new Set([
         ".replit", ".replitignore", "replit.nix",
         "pnpm-lock.yaml", "yarn.lock", "package-lock.json",
         ".npmrc", ".yarnrc", ".yarnrc.yml",
-        ".gitignore", ".gitattributes", ".editorconfig",
-        "Thumbs.db", ".DS_Store",
+        ".gitattributes", ".editorconfig",
+        "Thumbs.db", ".DS_Store", ".env", ".env.local",
       ]);
-      const SKIP_TOP_DIRS = new Set([".github", "node_modules", ".git", "dist", "build", ".next", "__pycache__"]);
+      // Top-level dirs that are always output/vendor and should be skipped
+      const SKIP_TOP_DIRS = new Set([
+        ".github", "node_modules", ".git", "dist", "build",
+        ".next", "__pycache__", ".turbo", ".cache", "coverage",
+      ]);
+      // Any path segment matching these should be skipped (catches nested node_modules, dist, etc.)
+      const SKIP_ANY_SEGMENT = new Set([
+        "node_modules", ".git", "dist", "build", ".next",
+        "__pycache__", ".turbo", ".cache", "coverage",
+      ]);
+      // Binary / non-text extensions to skip
+      const SKIP_EXTS = new Set([
+        "png", "jpg", "jpeg", "gif", "webp", "svg", "ico", "bmp", "tiff",
+        "woff", "woff2", "ttf", "eot", "otf",
+        "mp4", "mp3", "wav", "ogg", "webm", "avi",
+        "zip", "tar", "gz", "7z", "rar",
+        "pdf", "doc", "docx", "xls", "xlsx",
+        "pyc", "pyo", "class", "so", "dll", "exe",
+        "map", // source maps — large, not useful for editing
+      ]);
 
       const blobs: any[] = tree.tree
         .filter((f: any) => {
           if (f.type !== "blob" || !f.path) return false;
           const parts = f.path.split("/");
-          if (parts.length > 3) return false; // skip deeply-nested files (dist, build outputs)
           const name = parts[parts.length - 1];
           const topDir = parts[0];
-          // Skip minified/compiled bundles by extension
-          if (/\.(min\.js|min\.css|mjs\.map|js\.map|css\.map)$/.test(name)) return false;
-          return !SKIP_NAMES.has(name) && !SKIP_TOP_DIRS.has(topDir) && !name.startsWith(".");
-        })
-        .slice(0, 50);
+          const ext = name.split(".").pop()?.toLowerCase() ?? "";
 
-      setImportProgress("Creating CloudIDE project…");
+          if (SKIP_TOP_DIRS.has(topDir)) return false;
+          if (parts.some((seg: string) => SKIP_ANY_SEGMENT.has(seg))) return false;
+          if (SKIP_NAMES.has(name)) return false;
+          if (SKIP_EXTS.has(ext)) return false;
+          if (name.startsWith(".") && name !== ".gitignore") return false;
+          // Skip minified bundles
+          if (/\.(min\.js|min\.css)$/.test(name)) return false;
+          // Skip very large files (GitHub API reports size in bytes)
+          if (f.size && f.size > 200_000) return false;
+          return true;
+        })
+        // No arbitrary file cap — import everything that passes the filter
+        ;
+
+      setImportProgress(`Found ${blobs.length} files — creating project…`);
       const projRes = await fetch("/api/projects", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -619,32 +648,36 @@ export default function GitHubPage() {
       const proj = await projRes.json();
       if (!proj?.id) throw new Error("Project creation failed");
 
-      for (let i = 0; i < blobs.length; i++) {
-        const file = blobs[i];
-        setImportProgress(`Importing file ${i + 1}/${blobs.length}: ${file.path}`);
-        try {
-          const contentRes = await ghApi(`${API}/repos/${selectedRepo.owner.login}/${selectedRepo.name}/contents/${file.path}`);
-          if (contentRes?.content) {
-            const decoded = atob(contentRes.content.replace(/\s/g, ""));
-            // Use full path as name for nested files to avoid basename collisions
-            const displayName = file.path.includes("/") ? file.path : (file.path.split("/").pop() ?? file.path);
-            await fetch(`/api/projects/${proj.id}/files`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                name: displayName,
-                path: `/${file.path}`,
-                type: "file",
-                content: decoded,
-              }),
-            });
-          }
-        } catch { /* skip binary / unreadable files */ }
+      let imported = 0;
+      // Import in parallel batches of 5 for speed
+      const BATCH = 5;
+      for (let i = 0; i < blobs.length; i += BATCH) {
+        const batch = blobs.slice(i, i + BATCH);
+        setImportProgress(`Importing files ${i + 1}–${Math.min(i + BATCH, blobs.length)} of ${blobs.length}…`);
+        await Promise.all(batch.map(async (file: any) => {
+          try {
+            const contentRes = await ghApi(`${API}/repos/${selectedRepo.owner.login}/${selectedRepo.name}/contents/${file.path}`);
+            if (contentRes?.content) {
+              const decoded = atob(contentRes.content.replace(/\s/g, ""));
+              await fetch(`/api/projects/${proj.id}/files`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  name: file.path,
+                  path: `/${file.path}`,
+                  type: "file",
+                  content: decoded,
+                }),
+              });
+              imported++;
+            }
+          } catch { /* skip binary / unreadable files */ }
+        }));
       }
 
       setImportLoading(false);
       setShowImportRepo(false);
-      toast({ title: `Imported ${blobs.length} files into "${importProjectName}"` });
+      toast({ title: `Imported ${imported} files into "${importProjectName}"`, description: `From ${selectedRepo.full_name}` });
       window.location.href = `/projects/${proj.id}`;
     } catch (e: any) {
       setImportLoading(false);
@@ -1453,13 +1486,15 @@ export default function GitHubPage() {
               <Input value={importProjectName} onChange={e => setImportProjectName(e.target.value)} placeholder="my-project" className="font-mono" disabled={importLoading} />
             </div>
             {importLoading && (
-              <div className="flex items-center gap-2 p-3 bg-muted/40 rounded-lg border border-border">
-                <Loader2 size={14} className="animate-spin text-primary shrink-0" />
-                <p className="text-xs text-muted-foreground">{importProgress}</p>
+              <div className="space-y-2 p-3 bg-muted/40 rounded-lg border border-border">
+                <div className="flex items-center gap-2">
+                  <Loader2 size={14} className="animate-spin text-primary shrink-0" />
+                  <p className="text-xs text-muted-foreground truncate">{importProgress}</p>
+                </div>
               </div>
             )}
             {!importLoading && (
-              <p className="text-xs text-muted-foreground">Up to 50 text files will be imported. Binary files are skipped automatically.</p>
+              <p className="text-xs text-muted-foreground">All source files will be imported (no limit). Binary files, build outputs, and <code className="font-mono bg-muted px-1 rounded">node_modules</code> are skipped automatically.</p>
             )}
           </div>
           <DialogFooter>
