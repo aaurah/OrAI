@@ -57240,53 +57240,64 @@ async function callOpenAI(systemPrompt, message, imageUrl, existingFiles, curren
 }
 function generateAgenticFallback(message, existingFiles, currentFile) {
   const msg = message.toLowerCase().trim();
-  if (/^(hi|hello|hey|yo|sup|howdy|hola|test|ping)[\s!?.,]*$/.test(msg) || /are you (working|there|alive|ok|online|ready)/.test(msg) || msg === "test" || msg === "?" || /^how are you/.test(msg)) {
+  if (/^(hi|hello|hey|yo|sup|howdy|hola|test|ping)[\s!?.,]*$/.test(msg) || /^are you (working|there|alive|ok|online|ready)/.test(msg) || msg === "test" || msg === "?" || /^how are you/.test(msg)) {
     return {
-      reply: `\u2705 I'm working! I'm your AI coding assistant. I can create, edit, and delete files in your project. Try asking me to build a weather app, todo list, portfolio site, or anything else!`,
+      reply: `\u{1F44B} I'm working! I can help you create, edit, and delete files. What would you like to build or change?`,
       actions: []
     };
   }
-  if (/what can you (do|make|build|create)|help|capabilities|features/.test(msg)) {
+  if (/^(what can you|help|capabilities|features|what do you|how can you|can you)/i.test(msg)) {
     return {
-      reply: `I can create and edit full web projects! Try:
+      reply: `\u{1F3AF} I can create and edit web projects! Try:
 \u2022 "Create a weather app"
 \u2022 "Build a todo list"
-\u2022 "Make a portfolio website"
-\u2022 "Create a landing page"
-\u2022 "Build a quiz app"
+\u2022 "Make a portfolio"
+\u2022 "Create a calculator"
 
-What would you like to build?`,
+Or describe exactly what you want!`,
       actions: []
     };
   }
-  if (/\b(delete|remove)\b/.test(msg) && !/you (deleted|removed)|(was|got|been) (deleted|removed)|already deleted/.test(msg)) {
+  if (/^(delete|remove)\s+/i.test(msg)) {
     for (const f of existingFiles) {
       if (msg.includes(f.name.toLowerCase())) {
         return {
-          reply: `Deleting ${f.name}.`,
+          reply: `\u{1F5D1}\uFE0F Deleting ${f.name}.`,
           actions: [{ type: "delete_file", filename: f.name }]
         };
       }
     }
     return {
-      reply: `Which file would you like to delete? I can see: ${existingFiles.map((f) => f.name).join(", ") || "no files yet"}.`,
+      reply: `Which file would you like to delete? Files: ${existingFiles.map((f) => f.name).join(", ") || "none yet"}`,
       actions: []
     };
   }
-  if (/^(what|why|how|when|where|who|is|does|can|will|should|did)\b/.test(msg)) {
+  if (/^(what|why|how|when|where|who|is|does|can|will|should|did|have you)\b/i.test(msg)) {
+    const fileInfo = existingFiles.length > 0 ? `Your project has: ${existingFiles.map((f) => f.name).join(", ")}. ` : "";
     return {
-      reply: `I can help! Your project has: ${existingFiles.map((f) => f.name).join(", ") || "no files yet"}. What would you like me to do?`,
+      reply: `${fileInfo}Feel free to ask me anything or tell me what you'd like to build!`,
+      actions: []
+    };
+  }
+  if (existingFiles.length > 0 && /(change|update|edit|fix|improve|add|modify|redesign|update)/i.test(msg)) {
+    return {
+      reply: `\u{1F4DD} Sure! Your project has: ${existingFiles.map((f) => f.name).join(", ")}. What exactly would you like me to change?`,
       actions: []
     };
   }
   if (existingFiles.length > 0) {
     return {
-      reply: `Your project has: ${existingFiles.map((f) => f.name).join(", ")}. What would you like me to change or add?`,
+      reply: `\u{1F4C2} Your project has: ${existingFiles.map((f) => f.name).join(", ")}. What would you like me to do?`,
       actions: []
     };
   }
   return {
-    reply: `I can build web projects! Try: "Create a weather app", "Build a todo list", or "Make a portfolio website". What would you like to build?`,
+    reply: `\u2728 Let's create something! Try:
+\u2022 "Create a weather app"
+\u2022 "Build a todo list"
+\u2022 "Make a portfolio website"
+
+What would you like to build?`,
     actions: []
   };
 }
