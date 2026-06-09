@@ -28,15 +28,15 @@ export default function Dashboard() {
 
   return (
     <Layout>
-      <div className="p-8 max-w-6xl mx-auto w-full space-y-8">
-        <div className="flex items-center justify-between">
+      <div className="p-4 sm:p-8 max-w-6xl mx-auto w-full space-y-6 sm:space-y-8">
+        <div className="flex items-center justify-between gap-3">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight mb-1">Dashboard</h1>
-            <p className="text-muted-foreground">Overview of your workspace.</p>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight mb-1">Dashboard</h1>
+            <p className="text-muted-foreground text-sm">Overview of your workspace.</p>
           </div>
           <Link href="/projects/new">
-            <Button className="gap-2 font-medium">
-              <Plus size={16} /> New Project
+            <Button className="gap-2 font-medium shrink-0">
+              <Plus size={16} /> <span className="hidden sm:inline">New Project</span><span className="sm:hidden">New</span>
             </Button>
           </Link>
         </div>

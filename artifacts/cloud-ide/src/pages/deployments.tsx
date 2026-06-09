@@ -28,10 +28,10 @@ export default function Deployments() {
 
   return (
     <Layout>
-      <div className="p-8 max-w-6xl mx-auto w-full space-y-8">
+      <div className="p-4 sm:p-8 max-w-6xl mx-auto w-full space-y-6 sm:space-y-8">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight mb-1">Deployments</h1>
-          <p className="text-muted-foreground">Manage your deployed applications and custom domains.</p>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight mb-1">Deployments</h1>
+          <p className="text-muted-foreground text-sm">Manage your deployed applications and custom domains.</p>
         </div>
 
         {error ? (
@@ -65,6 +65,7 @@ export default function Deployments() {
                   </Link>
                 </div>
               ) : (
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow className="hover:bg-transparent">
@@ -112,6 +113,7 @@ export default function Deployments() {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               )}
             </CardContent>
           </Card>

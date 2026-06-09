@@ -116,7 +116,7 @@ export default function DeploymentDetail() {
   if (deployLoading) {
     return (
       <Layout>
-        <div className="p-8 space-y-6">
+        <div className="p-4 sm:p-8 space-y-6">
           <Skeleton className="h-8 w-48" />
           <Skeleton className="h-40 rounded-lg" />
           <Skeleton className="h-60 rounded-lg" />
@@ -128,7 +128,7 @@ export default function DeploymentDetail() {
   if (!deployment) {
     return (
       <Layout>
-        <div className="p-8 text-center">
+        <div className="p-4 sm:p-8 text-center">
           <p className="text-muted-foreground">Deployment not found.</p>
           <Link href="/deployments"><Button variant="outline" className="mt-4">Back to Deployments</Button></Link>
         </div>
@@ -138,7 +138,7 @@ export default function DeploymentDetail() {
 
   return (
     <Layout>
-      <div className="p-8 max-w-4xl mx-auto w-full space-y-6">
+      <div className="p-4 sm:p-8 max-w-4xl mx-auto w-full space-y-6">
         <div className="flex items-center gap-3">
           <Link href="/deployments">
             <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -255,8 +255,8 @@ export default function DeploymentDetail() {
             ) : !dnsRecords || dnsRecords.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-8">No DNS records yet. Add your first record above.</p>
             ) : (
-              <div className="rounded-lg border border-border overflow-hidden">
-                <table className="w-full text-xs">
+              <div className="rounded-lg border border-border overflow-x-auto">
+                <table className="w-full text-xs min-w-[500px]">
                   <thead className="bg-muted/30">
                     <tr>
                       {["Type", "Name", "Value", "TTL", ""].map(h => (

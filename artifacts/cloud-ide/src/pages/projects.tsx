@@ -63,7 +63,7 @@ export default function Projects() {
 
   return (
     <Layout>
-      <div className="p-8 max-w-6xl mx-auto w-full space-y-6">
+      <div className="p-4 sm:p-8 max-w-6xl mx-auto w-full space-y-5 sm:space-y-6">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold tracking-tight mb-1">Projects</h1>
