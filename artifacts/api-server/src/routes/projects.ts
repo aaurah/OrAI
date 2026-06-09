@@ -336,6 +336,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-seri
     // Inline referenced CSS and JS so the preview works without separate requests
     let html = indexFile.content;
 
+    // Inject <base> tag so any un-inlined relative links resolve to the preview asset route
+    if (!html.includes("<base")) {
+      html = html.replace(/<head([^>]*)>/i, (m) => `${m}\n  <base href="/api/projects/${projectId}/preview/" />`);
+    }
+
     // Inline <link rel="stylesheet" href="...">
     html = html.replace(/<link([^>]+)>/gi, (match, attrs) => {
       if (!/rel=["']stylesheet["']/i.test(attrs)) return match;
@@ -344,7 +349,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-seri
       const fname = hrefMatch[1].split("/").pop() ?? hrefMatch[1];
       const file = fileMap.get(fname);
       if (file?.content) return `<style>${file.content}</style>`;
-      return match;
+      return match; // base tag will allow browser to fetch it as fallback
     });
 
     // Inline <script src="..."></script>
@@ -354,7 +359,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-seri
       const fname = srcMatch[1].split("/").pop() ?? srcMatch[1];
       const file = fileMap.get(fname);
       if (file?.content) return `<script>${file.content}</script>`;
-      return match;
+      return match; // base tag will allow browser to fetch it as fallback
     });
 
     res.setHeader("Content-Type", "text/html; charset=utf-8");

@@ -28097,7 +28097,7 @@ var require_pino = __commonJS({
     function pinoBundlerAbsolutePath(p) {
       try {
         const path = __require("path");
-        const outputDir = "/home/runner/workspace/artifacts/api-server/dist";
+        const outputDir = "/home/user/OrAI/artifacts/api-server/dist";
         return path.resolve(outputDir, p.replace(/^\.\//, ""));
       } catch (e) {
         const f = new Function("p", "return new URL(p, import.meta.url).pathname");
@@ -56592,6 +56592,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-seri
       return;
     }
     let html = indexFile.content;
+    if (!html.includes("<base")) {
+      html = html.replace(/<head([^>]*)>/i, (m) => `${m}
+  <base href="/api/projects/${projectId}/preview/" />`);
+    }
     html = html.replace(/<link([^>]+)>/gi, (match, attrs) => {
       if (!/rel=["']stylesheet["']/i.test(attrs)) return match;
       const hrefMatch = /href=["']([^"']+)["']/i.exec(attrs);
