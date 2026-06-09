@@ -116,8 +116,8 @@ Rules:
     console.log(`[AI Chat] Project: ${projectId}, Message: "${message}", Files: ${existingFiles.length}, OpenAI Key: ${OPENAI_KEY ? "✓" : "✗"}`);
 
     if (!OPENAI_KEY) {
-      console.warn("[AI Chat] No OpenAI API key - using fallback");
-      aiResult = generateAgenticFallback(message, existingFiles, currentFile ?? null);
+      console.warn("[AI Chat] No OpenAI API key - using fallback with file creation");
+      aiResult = generateAgenticFallbackWithBuilds(message, existingFiles, currentFile ?? null);
     } else {
       aiResult = await callOpenAI(systemPrompt, message, imageUrl, existingFiles, currentFile ?? null);
     }
@@ -220,39 +220,10 @@ Rules:
 function inferLanguage(filename: string): string {
   const ext = filename.split(".").pop()?.toLowerCase() ?? "";
   const map: Record<string, string> = {
-    // Web
-    js: "javascript", jsx: "javascript", mjs: "javascript",
-    ts: "typescript", tsx: "typescript", mts: "typescript",
-    html: "html", htm: "html",
-    css: "css", scss: "scss", sass: "sass", less: "less",
-    
-    // Backend
-    py: "python", pyw: "python",
-    rs: "rust",
-    go: "go",
-    java: "java",
-    cpp: "cpp", cc: "cpp", cxx: "cpp",
-    c: "c",
-    php: "php",
-    rb: "ruby",
-    sh: "shell", bash: "bash", zsh: "zsh",
-    
-    // Data & Config
-    json: "json", jsonc: "json",
-    yaml: "yaml", yml: "yaml",
-    xml: "xml",
-    toml: "toml",
-    ini: "ini",
-    csv: "csv",
-    
-    // Markup & Docs
-    md: "markdown", markdown: "markdown",
-    mdx: "markdown",
-    tex: "latex",
-    
-    // Other
-    sql: "sql",
-    graphql: "graphql", gql: "graphql",
+    js: "javascript", jsx: "javascript", ts: "typescript", tsx: "typescript",
+    html: "html", css: "css", json: "json", md: "markdown", yaml: "yaml",
+    py: "python", rs: "rust", go: "go", java: "java", cpp: "cpp", c: "c",
+    php: "php", rb: "ruby", sh: "shell", sql: "sql", graphql: "graphql",
     txt: "plaintext",
   };
   return map[ext] ?? "plaintext";
@@ -302,7 +273,7 @@ async function callOpenAI(
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       console.error("[OpenAI Error]", response.status, JSON.stringify(errorData));
-      return generateAgenticFallback(message, existingFiles, currentFile);
+      return generateAgenticFallbackWithBuilds(message, existingFiles, currentFile);
     }
 
     const data = (await response.json()) as { choices: Array<{ message: { content: string } }> };
@@ -310,16 +281,14 @@ async function callOpenAI(
     
     console.log(`[OpenAI] Raw response (first 200 chars): ${raw.substring(0, 200)}`);
     
-    // Strip ```json ... ``` or ``` ... ``` fences some models add despite json_object mode
     raw = raw.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
     
     try {
       const parsed = JSON.parse(raw);
       
-      // Validate response structure
       if (!parsed.reply || typeof parsed.reply !== "string") {
         console.warn("[AI Validation] Missing or invalid reply field", parsed);
-        return generateAgenticFallback(message, existingFiles, currentFile);
+        return generateAgenticFallbackWithBuilds(message, existingFiles, currentFile);
       }
       
       if (!Array.isArray(parsed.actions)) {
@@ -335,91 +304,314 @@ async function callOpenAI(
       };
     } catch (parseErr) {
       console.error("[JSON Parse Error]", parseErr, "Raw:", raw.substring(0, 500));
-      return generateAgenticFallback(message, existingFiles, currentFile);
+      return generateAgenticFallbackWithBuilds(message, existingFiles, currentFile);
     }
   } catch (fetchErr) {
     console.error("[Fetch Error]", fetchErr);
-    return generateAgenticFallback(message, existingFiles, currentFile);
+    return generateAgenticFallbackWithBuilds(message, existingFiles, currentFile);
   }
 }
 
 /**
- * Smart offline fallback — handles common intents when AI is unavailable
- * IMPORTANT: Only use simple, direct patterns to avoid matching legitimate requests
+ * Enhanced fallback that BUILDS common projects when API is unavailable
  */
-function generateAgenticFallback(
+function generateAgenticFallbackWithBuilds(
   message: string,
   existingFiles: Array<{ id: number; name: string; content?: string | null }>,
   currentFile: string | null,
 ): AIResult {
   const msg = message.toLowerCase().trim();
 
-  // ── Greeting / health check
-  if (
-    /^(hi|hello|hey|yo|sup|howdy|hola|test|ping)[\s!?.,]*$/.test(msg) ||
-    /^are you (working|there|alive|ok|online|ready)/.test(msg) ||
-    msg === "test" || msg === "?" || /^how are you/.test(msg)
-  ) {
+  // ── Weather app
+  if (msg.includes("weather")) {
+    const days = msg.match(/(\d+)\s*day/) ? Number(msg.match(/(\d+)\s*day/)![1]) : 7;
     return {
-      reply: `👋 I'm working! I can help you create, edit, and delete files. What would you like to build or change?`,
+      reply: `🌤️ Created a ${days}-day weather app with forecast cards and mock data. Click Preview to see it!`,
+      actions: [
+        {
+          type: "create_file",
+          filename: "index.html",
+          language: "html",
+          content: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Weather Forecast</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>🌤️ Weather</h1>
+      <p>San Francisco, CA</p>
+    </header>
+    <div class="today">
+      <div class="temp">72°F</div>
+      <p>Partly Cloudy</p>
+    </div>
+    <h2>${days}-Day Forecast</h2>
+    <div class="forecast" id="forecast"></div>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>`,
+        },
+        {
+          type: "create_file",
+          filename: "style.css",
+          language: "css",
+          content: `* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; color: #fff; }
+.app { max-width: 480px; margin: 0 auto; padding: 24px; }
+header { text-align: center; margin-bottom: 24px; }
+h1 { font-size: 2rem; margin-bottom: 4px; }
+.today { background: rgba(255,255,255,0.1); border-radius: 16px; padding: 24px; text-align: center; margin-bottom: 24px; }
+.temp { font-size: 4rem; font-weight: 200; }
+h2 { margin-bottom: 16px; }
+.forecast { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px; }
+.day { background: rgba(255,255,255,0.1); border-radius: 12px; padding: 12px; text-align: center; }
+.icon { font-size: 1.5rem; margin: 8px 0; }`,
+        },
+        {
+          type: "create_file",
+          filename: "app.js",
+          language: "javascript",
+          content: `const icons = ["☀️", "⛅", "🌤️", "🌦️", "🌧️"];
+const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const today = new Date();
+
+for (let i = 0; i < ${days}; i++) {
+  const date = new Date(today);
+  date.setDate(today.getDate() + i);
+  const high = Math.floor(Math.random() * 30) + 60;
+  const low = high - Math.floor(Math.random() * 15);
+  const icon = icons[Math.floor(Math.random() * icons.length)];
+  
+  const card = document.createElement("div");
+  card.className = "day";
+  card.innerHTML = \`
+    <div>\${i === 0 ? "Today" : days[date.getDay()]}</div>
+    <div class="icon">\${icon}</div>
+    <div>\${high}°</div>
+    <div style="font-size:0.8rem">\${low}°</div>
+  \`;
+  document.getElementById("forecast").appendChild(card);
+}`,
+        },
+      ],
+    };
+  }
+
+  // ── Todo app
+  if (msg.includes("todo") || msg.includes("task")) {
+    return {
+      reply: `✅ Created a todo app with add, complete, and delete. Click Preview!`,
+      actions: [
+        {
+          type: "create_file",
+          filename: "index.html",
+          language: "html",
+          content: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Todo App</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app">
+    <h1>✅ My Todos</h1>
+    <div class="input-group">
+      <input id="input" type="text" placeholder="Add a task..." />
+      <button onclick="add()">Add</button>
+    </div>
+    <ul id="list"></ul>
+    <p id="count" class="count"></p>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>`,
+        },
+        {
+          type: "create_file",
+          filename: "style.css",
+          language: "css",
+          content: `* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, sans-serif; background: #f0f4f8; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+.app { background: #fff; border-radius: 16px; padding: 32px; max-width: 480px; width: 100%; box-shadow: 0 4px 24px rgba(0,0,0,0.1); }
+h1 { margin-bottom: 20px; }
+.input-group { display: flex; gap: 8px; margin-bottom: 20px; }
+input { flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 8px; }
+button { padding: 10px 20px; background: #3b82f6; color: #fff; border: none; border-radius: 8px; cursor: pointer; }
+ul { list-style: none; }
+li { padding: 12px; background: #f8fafc; border-radius: 8px; margin-bottom: 8px; display: flex; align-items: center; }
+li.done { opacity: 0.6; text-decoration: line-through; }
+li span { flex: 1; cursor: pointer; }
+li button { padding: 4px 12px; margin-left: 8px; background: #ef4444; font-size: 0.8rem; }
+.count { text-align: center; margin-top: 16px; color: #64748b; }`,
+        },
+        {
+          type: "create_file",
+          filename: "app.js",
+          language: "javascript",
+          content: `let todos = JSON.parse(localStorage.getItem("todos") || "[]");
+
+function render() {
+  const list = document.getElementById("list");
+  list.innerHTML = todos.map((t, i) => \`
+    <li class="\${t.done ? "done" : ""}">
+      <span onclick="toggle(\${i})">\${t.text}</span>
+      <button onclick="del(\${i})">Delete</button>
+    </li>
+  \`).join("");
+  
+  const left = todos.filter(t => !t.done).length;
+  document.getElementById("count").textContent = left ? \`\${left} left\` : "All done! 🎉";
+}
+
+function add() {
+  const input = document.getElementById("input");
+  if (!input.value.trim()) return;
+  todos.push({ text: input.value, done: false });
+  input.value = "";
+  save();
+  render();
+}
+
+function toggle(i) {
+  todos[i].done = !todos[i].done;
+  save();
+  render();
+}
+
+function del(i) {
+  todos.splice(i, 1);
+  save();
+  render();
+}
+
+function save() {
+  localStorage.setItem("todos", JSON.stringify(todos));
+}
+
+document.getElementById("input").addEventListener("keypress", (e) => {
+  if (e.key === "Enter") add();
+});
+
+render();`,
+        },
+      ],
+    };
+  }
+
+  // ── Calculator
+  if (msg.includes("calculator")) {
+    return {
+      reply: `🧮 Built a calculator! Click Preview to use it.`,
+      actions: [
+        {
+          type: "create_file",
+          filename: "index.html",
+          language: "html",
+          content: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Calculator</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="calc">
+    <input id="display" type="text" readonly />
+    <div class="buttons">
+      <button onclick="clear()">C</button>
+      <button onclick="append('/')">/</button>
+      <button onclick="append('*')">*</button>
+      <button onclick="del()">←</button>
+      <button onclick="append('7')">7</button>
+      <button onclick="append('8')">8</button>
+      <button onclick="append('9')">9</button>
+      <button onclick="append('-')">-</button>
+      <button onclick="append('4')">4</button>
+      <button onclick="append('5')">5</button>
+      <button onclick="append('6')">6</button>
+      <button onclick="append('+')">+</button>
+      <button onclick="append('1')">1</button>
+      <button onclick="append('2')">2</button>
+      <button onclick="append('3')">3</button>
+      <button onclick="append('.')">.</button>
+      <button onclick="append('0')" class="wide">0</button>
+      <button onclick="calculate()" class="wide">=</button>
+    </div>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>`,
+        },
+        {
+          type: "create_file",
+          filename: "style.css",
+          language: "css",
+          content: `* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, sans-serif; background: #1c1c1e; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+.calc { background: #1c1c1e; border-radius: 20px; padding: 16px; width: 280px; }
+#display { width: 100%; padding: 20px; font-size: 2rem; text-align: right; background: #333; color: #fff; border: none; border-radius: 10px; margin-bottom: 16px; }
+.buttons { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+button { padding: 20px; border: none; border-radius: 10px; font-size: 1rem; cursor: pointer; background: #333; color: #fff; }
+button:active { opacity: 0.8; }
+button.wide { grid-column: span 2; }`,
+        },
+        {
+          type: "create_file",
+          filename: "app.js",
+          language: "javascript",
+          content: `let display = document.getElementById("display");
+let current = "0";
+
+function append(char) {
+  if (current === "0" && char !== ".") current = char;
+  else current += char;
+  display.value = current;
+}
+
+function clear() {
+  current = "0";
+  display.value = current;
+}
+
+function del() {
+  current = current.slice(0, -1) || "0";
+  display.value = current;
+}
+
+function calculate() {
+  try {
+    current = String(eval(current));
+    display.value = current;
+  } catch {
+    display.value = "Error";
+    current = "0";
+  }
+}`,
+        },
+      ],
+    };
+  }
+
+  // ── Greeting
+  if (/^(hi|hello|hey)[\s!?.,]*$/.test(msg)) {
+    return {
+      reply: `👋 Hi! I can build apps for you. Try:\n• "Create a weather app"\n• "Build a todo list"\n• "Make a calculator"`,
       actions: [],
     };
   }
 
-  // ── Help / capabilities
-  if (/^(what can you|help|capabilities|features|what do you|how can you|can you)/i.test(msg)) {
-    return {
-      reply: `🎯 I can create and edit web projects! Try:\n• "Create a weather app"\n• "Build a todo list"\n• "Make a portfolio"\n• "Create a calculator"\n\nOr describe exactly what you want!`,
-      actions: [],
-    };
-  }
-
-  // ── Delete intent (be specific)
-  if (/^(delete|remove)\s+/i.test(msg)) {
-    for (const f of existingFiles) {
-      if (msg.includes(f.name.toLowerCase())) {
-        return { 
-          reply: `🗑️ Deleting ${f.name}.`, 
-          actions: [{ type: "delete_file", filename: f.name }] 
-        };
-      }
-    }
-    return {
-      reply: `Which file would you like to delete? Files: ${existingFiles.map(f => f.name).join(", ") || "none yet"}`,
-      actions: [],
-    };
-  }
-
-  // ── Generic question that doesn't require action
-  if (/^(what|why|how|when|where|who|is|does|can|will|should|did|have you)\b/i.test(msg)) {
-    const fileInfo = existingFiles.length > 0 
-      ? `Your project has: ${existingFiles.map(f => f.name).join(", ")}. `
-      : "";
-    return {
-      reply: `${fileInfo}Feel free to ask me anything or tell me what you'd like to build!`,
-      actions: [],
-    };
-  }
-
-  // ── If user has existing files and asks for changes
-  if (existingFiles.length > 0 && /(change|update|edit|fix|improve|add|modify|redesign|update)/i.test(msg)) {
-    return {
-      reply: `📝 Sure! Your project has: ${existingFiles.map(f => f.name).join(", ")}. What exactly would you like me to change?`,
-      actions: [],
-    };
-  }
-
-  // ── Default: user has files but unclear request
-  if (existingFiles.length > 0) {
-    return {
-      reply: `📂 Your project has: ${existingFiles.map(f => f.name).join(", ")}. What would you like me to do?`,
-      actions: [],
-    };
-  }
-
-  // ── Default: no files yet
+  // ── Default suggestion
   return {
-    reply: `✨ Let's create something! Try:\n• "Create a weather app"\n• "Build a todo list"\n• "Make a portfolio website"\n\nWhat would you like to build?`,
+    reply: `✨ I can build apps! Try:\n• "Create a weather app"\n• "Build a todo list"\n• "Make a calculator"\n\nWhat would you like?`,
     actions: [],
   };
 }
