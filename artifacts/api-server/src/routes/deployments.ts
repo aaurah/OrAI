@@ -1,0 +1,158 @@
+import { Router } from "express";
+import { db } from "@workspace/db";
+import { deploymentsTable, projectsTable } from "@workspace/db";
+import { eq, desc } from "drizzle-orm";
+import {
+  ListDeploymentsParams,
+  CreateDeploymentParams,
+  CreateDeploymentBody,
+  GetDeploymentParams,
+  UpdateDeploymentParams,
+  UpdateDeploymentBody,
+  DeleteDeploymentParams,
+} from "@workspace/api-zod";
+
+const router = Router();
+
+router.get("/deployments", async (_req, res) => {
+  try {
+    const deployments = await db
+      .select({
+        id: deploymentsTable.id,
+        projectId: deploymentsTable.projectId,
+        projectName: projectsTable.name,
+        status: deploymentsTable.status,
+        url: deploymentsTable.url,
+        customDomain: deploymentsTable.customDomain,
+        region: deploymentsTable.region,
+        buildLog: deploymentsTable.buildLog,
+        createdAt: deploymentsTable.createdAt,
+        updatedAt: deploymentsTable.updatedAt,
+      })
+      .from(deploymentsTable)
+      .leftJoin(projectsTable, eq(deploymentsTable.projectId, projectsTable.id))
+      .orderBy(desc(deploymentsTable.createdAt));
+
+    res.json(deployments.map(serializeDeployment));
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch deployments" });
+  }
+});
+
+router.get("/deployments/:id", async (req, res) => {
+  const parsed = GetDeploymentParams.safeParse({ id: Number(req.params.id) });
+  if (!parsed.success) return res.status(400).json({ error: "Invalid id" });
+  try {
+    const rows = await db
+      .select({
+        id: deploymentsTable.id,
+        projectId: deploymentsTable.projectId,
+        projectName: projectsTable.name,
+        status: deploymentsTable.status,
+        url: deploymentsTable.url,
+        customDomain: deploymentsTable.customDomain,
+        region: deploymentsTable.region,
+        buildLog: deploymentsTable.buildLog,
+        createdAt: deploymentsTable.createdAt,
+        updatedAt: deploymentsTable.updatedAt,
+      })
+      .from(deploymentsTable)
+      .leftJoin(projectsTable, eq(deploymentsTable.projectId, projectsTable.id))
+      .where(eq(deploymentsTable.id, parsed.data.id));
+
+    if (!rows[0]) return res.status(404).json({ error: "Not found" });
+    res.json(serializeDeployment(rows[0]));
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch deployment" });
+  }
+});
+
+router.get("/projects/:id/deployments", async (req, res) => {
+  const parsed = ListDeploymentsParams.safeParse({ id: Number(req.params.id) });
+  if (!parsed.success) return res.status(400).json({ error: "Invalid id" });
+  try {
+    const deployments = await db
+      .select()
+      .from(deploymentsTable)
+      .where(eq(deploymentsTable.projectId, parsed.data.id))
+      .orderBy(desc(deploymentsTable.createdAt));
+    res.json(deployments.map(d => ({ ...serializeDeployment(d), projectName: null })));
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch deployments" });
+  }
+});
+
+router.post("/projects/:id/deployments", async (req, res) => {
+  const paramsParsed = CreateDeploymentParams.safeParse({ id: Number(req.params.id) });
+  if (!paramsParsed.success) return res.status(400).json({ error: "Invalid id" });
+  const bodyParsed = CreateDeploymentBody.safeParse(req.body);
+  if (!bodyParsed.success) return res.status(400).json({ error: bodyParsed.error.message });
+
+  try {
+    const subdomain = `project-${paramsParsed.data.id}-${Date.now()}`;
+    const url = `https://${subdomain}.deployments.example.com`;
+
+    const [deployment] = await db.insert(deploymentsTable).values({
+      projectId: paramsParsed.data.id,
+      status: "building",
+      url,
+      customDomain: bodyParsed.data.customDomain ?? null,
+      region: bodyParsed.data.region ?? "us-east-1",
+      buildLog: "Build started...\nInstalling dependencies...\nBuild complete.\n",
+    }).returning();
+
+    setTimeout(async () => {
+      await db.update(deploymentsTable)
+        .set({ status: "live", updatedAt: new Date() })
+        .where(eq(deploymentsTable.id, deployment.id));
+    }, 3000);
+
+    res.status(201).json({ ...serializeDeployment(deployment), projectName: null });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to create deployment" });
+  }
+});
+
+router.patch("/deployments/:id", async (req, res) => {
+  const paramsParsed = UpdateDeploymentParams.safeParse({ id: Number(req.params.id) });
+  if (!paramsParsed.success) return res.status(400).json({ error: "Invalid id" });
+  const bodyParsed = UpdateDeploymentBody.safeParse(req.body);
+  if (!bodyParsed.success) return res.status(400).json({ error: bodyParsed.error.message });
+
+  try {
+    const updateData: Record<string, unknown> = { updatedAt: new Date() };
+    if (bodyParsed.data.customDomain !== undefined) updateData.customDomain = bodyParsed.data.customDomain;
+    if (bodyParsed.data.status !== undefined) updateData.status = bodyParsed.data.status;
+
+    const [updated] = await db
+      .update(deploymentsTable)
+      .set(updateData)
+      .where(eq(deploymentsTable.id, paramsParsed.data.id))
+      .returning();
+    if (!updated) return res.status(404).json({ error: "Not found" });
+    res.json({ ...serializeDeployment(updated), projectName: null });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to update deployment" });
+  }
+});
+
+router.delete("/deployments/:id", async (req, res) => {
+  const parsed = DeleteDeploymentParams.safeParse({ id: Number(req.params.id) });
+  if (!parsed.success) return res.status(400).json({ error: "Invalid id" });
+  try {
+    await db.delete(deploymentsTable).where(eq(deploymentsTable.id, parsed.data.id));
+    res.status(204).send();
+  } catch (err) {
+    res.status(500).json({ error: "Failed to delete deployment" });
+  }
+});
+
+function serializeDeployment(d: { createdAt: Date; updatedAt: Date; [key: string]: unknown }) {
+  return {
+    ...d,
+    createdAt: d.createdAt.toISOString(),
+    updatedAt: d.updatedAt.toISOString(),
+  };
+}
+
+export default router;

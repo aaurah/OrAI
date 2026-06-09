@@ -1,22 +1,32 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Cloud IDE API specification
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: projects
+    description: Project management
+  - name: files
+    description: File management within projects
+  - name: deployments
+    description: Deployment management
+  - name: dns
+    description: DNS record management
+  - name: ai
+    description: AI assistant
+  - name: templates
+    description: Project templates
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +34,484 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /projects:
+    get:
+      operationId: listProjects
+      tags: [projects]
+      summary: List all projects
+      responses:
+        "200":
+          description: List of projects
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Project"
+    post:
+      operationId: createProject
+      tags: [projects]
+      summary: Create a new project
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProjectInput"
+      responses:
+        "201":
+          description: Created project
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+
+  /projects/stats:
+    get:
+      operationId: getProjectStats
+      tags: [projects]
+      summary: Get project overview stats
+      responses:
+        "200":
+          description: Stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectStats"
+
+  /projects/recent:
+    get:
+      operationId: getRecentProjects
+      tags: [projects]
+      summary: Get recently accessed projects
+      responses:
+        "200":
+          description: Recent projects
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Project"
+
+  /projects/{id}:
+    get:
+      operationId: getProject
+      tags: [projects]
+      summary: Get a project by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Project
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateProject
+      tags: [projects]
+      summary: Update a project
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProjectUpdate"
+      responses:
+        "200":
+          description: Updated project
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+    delete:
+      operationId: deleteProject
+      tags: [projects]
+      summary: Delete a project
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /projects/{id}/files:
+    get:
+      operationId: listFiles
+      tags: [files]
+      summary: List all files in a project
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: File tree
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/File"
+    post:
+      operationId: createFile
+      tags: [files]
+      summary: Create a file in a project
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FileInput"
+      responses:
+        "201":
+          description: Created file
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/File"
+
+  /projects/{id}/files/{fileId}:
+    get:
+      operationId: getFile
+      tags: [files]
+      summary: Get a specific file
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: File
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/File"
+    patch:
+      operationId: updateFile
+      tags: [files]
+      summary: Update a file's content
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FileUpdate"
+      responses:
+        "200":
+          description: Updated file
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/File"
+    delete:
+      operationId: deleteFile
+      tags: [files]
+      summary: Delete a file
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /projects/{id}/deployments:
+    get:
+      operationId: listDeployments
+      tags: [deployments]
+      summary: List deployments for a project
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deployments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Deployment"
+    post:
+      operationId: createDeployment
+      tags: [deployments]
+      summary: Deploy a project
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeploymentInput"
+      responses:
+        "201":
+          description: Deployment started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Deployment"
+
+  /deployments:
+    get:
+      operationId: listAllDeployments
+      tags: [deployments]
+      summary: List all deployments across projects
+      responses:
+        "200":
+          description: All deployments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Deployment"
+
+  /deployments/{id}:
+    get:
+      operationId: getDeployment
+      tags: [deployments]
+      summary: Get a deployment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deployment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Deployment"
+    patch:
+      operationId: updateDeployment
+      tags: [deployments]
+      summary: Update deployment (e.g. set custom domain)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeploymentUpdate"
+      responses:
+        "200":
+          description: Updated deployment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Deployment"
+    delete:
+      operationId: deleteDeployment
+      tags: [deployments]
+      summary: Delete a deployment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /deployments/{id}/dns:
+    get:
+      operationId: listDnsRecords
+      tags: [dns]
+      summary: List DNS records for a deployment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: DNS records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DnsRecord"
+    post:
+      operationId: createDnsRecord
+      tags: [dns]
+      summary: Create a DNS record
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DnsRecordInput"
+      responses:
+        "201":
+          description: Created DNS record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DnsRecord"
+
+  /deployments/{id}/dns/{recordId}:
+    patch:
+      operationId: updateDnsRecord
+      tags: [dns]
+      summary: Update a DNS record
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: recordId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DnsRecordUpdate"
+      responses:
+        "200":
+          description: Updated DNS record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DnsRecord"
+    delete:
+      operationId: deleteDnsRecord
+      tags: [dns]
+      summary: Delete a DNS record
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: recordId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /projects/{id}/ai/chat:
+    post:
+      operationId: aiChat
+      tags: [ai]
+      summary: Send a message to the AI assistant
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AiChatInput"
+      responses:
+        "200":
+          description: AI response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiReply"
+
+  /templates:
+    get:
+      operationId: listTemplates
+      tags: [templates]
+      summary: List available project templates
+      responses:
+        "200":
+          description: Templates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Template"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +522,319 @@ components:
       required:
         - status
 
+    Project:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        language:
+          type: string
+        template:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [active, archived]
+        isPublic:
+          type: boolean
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - name
+        - language
+        - status
+        - isPublic
+        - createdAt
+        - updatedAt
+
+    ProjectInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        language:
+          type: string
+        template:
+          type: string
+        isPublic:
+          type: boolean
+      required:
+        - name
+        - language
+
+    ProjectUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [active, archived]
+        isPublic:
+          type: boolean
+
+    ProjectStats:
+      type: object
+      properties:
+        totalProjects:
+          type: integer
+        activeProjects:
+          type: integer
+        totalDeployments:
+          type: integer
+        liveDeployments:
+          type: integer
+      required:
+        - totalProjects
+        - activeProjects
+        - totalDeployments
+        - liveDeployments
+
+    File:
+      type: object
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        name:
+          type: string
+        path:
+          type: string
+        content:
+          type: ["string", "null"]
+        type:
+          type: string
+          enum: [file, directory]
+        language:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - projectId
+        - name
+        - path
+        - type
+        - createdAt
+        - updatedAt
+
+    FileInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        path:
+          type: string
+        content:
+          type: string
+        type:
+          type: string
+          enum: [file, directory]
+      required:
+        - name
+        - path
+        - type
+
+    FileUpdate:
+      type: object
+      properties:
+        content:
+          type: string
+        name:
+          type: string
+
+    Deployment:
+      type: object
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        projectName:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [pending, building, live, failed, stopped]
+        url:
+          type: ["string", "null"]
+        customDomain:
+          type: ["string", "null"]
+        region:
+          type: ["string", "null"]
+        buildLog:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - projectId
+        - status
+        - createdAt
+        - updatedAt
+
+    DeploymentInput:
+      type: object
+      properties:
+        region:
+          type: string
+        customDomain:
+          type: string
+      required: []
+
+    DeploymentUpdate:
+      type: object
+      properties:
+        customDomain:
+          type: string
+        status:
+          type: string
+          enum: [stopped]
+
+    DnsRecord:
+      type: object
+      properties:
+        id:
+          type: integer
+        deploymentId:
+          type: integer
+        type:
+          type: string
+          enum: [A, AAAA, CNAME, MX, TXT, NS, SRV]
+        name:
+          type: string
+        value:
+          type: string
+        ttl:
+          type: integer
+        priority:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - deploymentId
+        - type
+        - name
+        - value
+        - ttl
+        - createdAt
+        - updatedAt
+
+    DnsRecordInput:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [A, AAAA, CNAME, MX, TXT, NS, SRV]
+        name:
+          type: string
+          minLength: 1
+        value:
+          type: string
+          minLength: 1
+        ttl:
+          type: integer
+        priority:
+          type: integer
+      required:
+        - type
+        - name
+        - value
+        - ttl
+
+    DnsRecordUpdate:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [A, AAAA, CNAME, MX, TXT, NS, SRV]
+        name:
+          type: string
+        value:
+          type: string
+        ttl:
+          type: integer
+        priority:
+          type: integer
+
+    AiChatInput:
+      type: object
+      properties:
+        message:
+          type: string
+          minLength: 1
+        context:
+          type: ["string", "null"]
+        currentFile:
+          type: ["string", "null"]
+      required:
+        - message
+
+    AiReply:
+      type: object
+      properties:
+        reply:
+          type: string
+        codeBlocks:
+          type: array
+          items:
+            $ref: "#/components/schemas/CodeBlock"
+      required:
+        - reply
+        - codeBlocks
+
+    CodeBlock:
+      type: object
+      properties:
+        language:
+          type: string
+        code:
+          type: string
+        filename:
+          type: ["string", "null"]
+      required:
+        - language
+        - code
+
+    Template:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        language:
+          type: string
+        icon:
+          type: ["string", "null"]
+        tags:
+          type: array
+          items:
+            type: string
+      required:
+        - id
+        - name
+        - description
+        - language
+        - tags
