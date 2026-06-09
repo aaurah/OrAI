@@ -560,7 +560,19 @@ export default function GitHubPage() {
     try {
       setImportProgress("Fetching file tree from GitHub…");
       const defaultBranch = selectedRepo.default_branch || "main";
-      const tree = await ghApi(`${API}/repos/${selectedRepo.owner.login}/${selectedRepo.name}/git/trees/${defaultBranch}?recursive=1`);
+
+      // Resolve branch → commit SHA → tree SHA (direct branch name fails on git/trees)
+      const branchData = await ghApi(`${API}/repos/${selectedRepo.owner.login}/${selectedRepo.name}/branches/${defaultBranch}`);
+      if (!branchData?.commit?.sha) {
+        throw new Error(branchData?.message ?? "Could not resolve branch");
+      }
+      const commitData = await ghApi(`${API}/repos/${selectedRepo.owner.login}/${selectedRepo.name}/commits/${branchData.commit.sha}`);
+      const treeSha = commitData?.commit?.tree?.sha;
+      if (!treeSha) {
+        throw new Error("Could not get tree SHA from commit");
+      }
+
+      const tree = await ghApi(`${API}/repos/${selectedRepo.owner.login}/${selectedRepo.name}/git/trees/${treeSha}?recursive=1`);
       if (!tree?.tree) {
         throw new Error(tree?.message ?? "Failed to fetch repository file tree");
       }
