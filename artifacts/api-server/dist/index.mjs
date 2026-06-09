@@ -56414,21 +56414,180 @@ router2.get("/projects/:id/preview", async (req, res) => {
     }
     const indexFile = fileMap.get("index.html");
     if (!indexFile?.content) {
-      res.status(200).setHeader("Content-Type", "text/html; charset=utf-8").send(`<!DOCTYPE html><html><head><meta charset="UTF-8"/>
-<title>No Preview</title>
+      const files = Array.from(fileMap.values());
+      const fileNames = files.map((f) => f.name);
+      const hasTS = fileNames.some((n) => n.endsWith(".ts") || n.endsWith(".tsx"));
+      const hasTSX = fileNames.some((n) => n.endsWith(".tsx"));
+      const hasJS = fileNames.some((n) => n.endsWith(".js") || n.endsWith(".jsx"));
+      const hasPy = fileNames.some((n) => n.endsWith(".py"));
+      const hasRust = fileNames.some((n) => n.endsWith(".rs"));
+      const hasGo = fileNames.some((n) => n.endsWith(".go"));
+      const hasPkg = fileMap.has("package.json");
+      const hasWorkspace = fileNames.some((n) => n.includes("pnpm-workspace") || n.includes("package.json"));
+      const hasVite = fileNames.some((n) => n.includes("vite.config"));
+      const hasReact = hasTSX || fileNames.some((n) => n.endsWith(".jsx"));
+      const hasDrizzle = fileNames.some((n) => n.includes("drizzle"));
+      const hasExpress = fileNames.some((n) => n.includes("express") || (fileMap.get(n)?.content ?? "").includes("express"));
+      const hasReadme = fileMap.has("README.md") || fileMap.has("readme.md");
+      let lang = "Code";
+      let langColor = "#6366f1";
+      let langIcon = "\u{1F4C4}";
+      if (hasTS && hasReact) {
+        lang = "TypeScript + React";
+        langColor = "#3178c6";
+        langIcon = "\u269B\uFE0F";
+      } else if (hasTS) {
+        lang = "TypeScript";
+        langColor = "#3178c6";
+        langIcon = "\u{1F537}";
+      } else if (hasPy) {
+        lang = "Python";
+        langColor = "#3572A5";
+        langIcon = "\u{1F40D}";
+      } else if (hasRust) {
+        lang = "Rust";
+        langColor = "#dea584";
+        langIcon = "\u{1F980}";
+      } else if (hasGo) {
+        lang = "Go";
+        langColor = "#00ADD8";
+        langIcon = "\u{1F439}";
+      } else if (hasJS) {
+        lang = "JavaScript";
+        langColor = "#f1e05a";
+        langIcon = "\u{1F7E8}";
+      }
+      const badges = [lang];
+      if (hasPkg && hasWorkspace) badges.push("pnpm monorepo");
+      if (hasVite) badges.push("Vite");
+      if (hasDrizzle) badges.push("Drizzle ORM");
+      if (hasExpress) badges.push("Express");
+      let pkgJson = null;
+      const pkgFile = fileMap.get("package.json");
+      if (pkgFile?.content) {
+        try {
+          pkgJson = JSON.parse(pkgFile.content);
+        } catch {
+        }
+      }
+      const readmeFile = fileMap.get("README.md") ?? fileMap.get("readme.md");
+      const readmeSnippet = readmeFile?.content ? readmeFile.content.slice(0, 800).replace(/</g, "&lt;").replace(/>/g, "&gt;") : null;
+      const sortedFiles = files.sort((a, b) => a.name.localeCompare(b.name)).slice(0, 30);
+      const fileRows = sortedFiles.map((f) => {
+        const ext = f.name.split(".").pop() ?? "";
+        const extColors = {
+          ts: "#3178c6",
+          tsx: "#3178c6",
+          js: "#f1e05a",
+          jsx: "#f1e05a",
+          py: "#3572A5",
+          rs: "#dea584",
+          go: "#00ADD8",
+          css: "#563d7c",
+          html: "#e34c26",
+          json: "#6b7280",
+          md: "#94a3b8",
+          toml: "#9c4221",
+          sql: "#e88c3a"
+        };
+        const color = extColors[ext] ?? "#6b7280";
+        const isDeep = f.name.includes("/");
+        const indent = isDeep ? "  " : "";
+        return `<div class="file-row">
+          <span class="file-dot" style="background:${color}"></span>
+          <span class="file-name" style="${isDeep ? "color:#8b949e;font-size:11px" : ""}">${indent}${f.name}</span>
+          ${f.content ? `<span class="file-size">${Math.ceil(f.content.length / 1024)}KB</span>` : ""}
+        </div>`;
+      }).join("");
+      const projectName = pkgJson?.name ?? `Project #${projectId}`;
+      const description = pkgJson?.description ?? "Imported project";
+      res.status(200).setHeader("Content-Type", "text/html; charset=utf-8").send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>${projectName}</title>
 <style>
-body{font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;
-height:100vh;margin:0;background:#0d1117;color:#8b949e;}
-.box{text-align:center;padding:40px;}
-h2{color:#f0f6fc;margin-bottom:8px;}
-p{margin:4px 0;font-size:14px;}
-.hint{margin-top:16px;background:#161b22;border:1px solid #30363d;border-radius:8px;
-padding:12px 20px;font-size:13px;color:#58a6ff;}
-</style></head><body><div class="box">
-<h2>No Preview Available</h2>
-<p>Your project doesn't have an <code>index.html</code> yet.</p>
-<p class="hint">\u{1F4A1} Ask the AI to create a project, or add an index.html file.</p>
-</div></body></html>`);
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;background:#0d1117;color:#e6edf3;min-height:100vh;padding:32px 16px}
+.container{max-width:680px;margin:0 auto}
+.header{margin-bottom:28px}
+.project-name{font-size:1.6rem;font-weight:700;color:#f0f6fc;margin-bottom:6px}
+.description{color:#8b949e;font-size:14px;margin-bottom:14px}
+.badges{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:4px}
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:600;background:#161b22;border:1px solid #30363d;color:#e6edf3}
+.badge.primary{background:${langColor}22;border-color:${langColor}55;color:${langColor}}
+.section{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:20px;margin-bottom:16px}
+.section-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#8b949e;margin-bottom:12px}
+.file-row{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #21262d;font-size:13px;font-family:"JetBrains Mono",Menlo,monospace}
+.file-row:last-child{border-bottom:none}
+.file-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.file-name{flex:1;color:#c9d1d9}
+.file-size{color:#484f58;font-size:11px}
+.meta-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.meta-item{padding:10px 14px;background:#0d1117;border-radius:8px;border:1px solid #21262d}
+.meta-label{font-size:10px;color:#6e7681;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
+.meta-value{font-size:13px;font-family:"JetBrains Mono",Menlo,monospace;color:#e6edf3}
+.readme{font-size:13px;color:#8b949e;white-space:pre-wrap;line-height:1.7;max-height:200px;overflow:hidden;position:relative}
+.readme::after{content:"";position:absolute;bottom:0;left:0;right:0;height:40px;background:linear-gradient(transparent,#161b22)}
+.tip{background:#0d419d22;border:1px solid #1f6feb55;border-radius:10px;padding:14px 16px;font-size:13px;color:#58a6ff;margin-top:4px}
+.tip strong{color:#79c0ff}
+.scripts{display:flex;flex-direction:column;gap:6px}
+.script-row{display:flex;align-items:center;gap:8px;font-size:12px;font-family:"JetBrains Mono",Menlo,monospace}
+.script-name{color:#79c0ff;min-width:80px}
+.script-cmd{color:#8b949e;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div class="project-name">${langIcon} ${projectName}</div>
+    <div class="description">${description}</div>
+    <div class="badges">
+      <span class="badge primary">${lang}</span>
+      ${badges.slice(1).map((b) => `<span class="badge">${b}</span>`).join("")}
+      <span class="badge">${files.length} files</span>
+    </div>
+  </div>
+
+  ${pkgJson && Object.keys(pkgJson.scripts ?? {}).length > 0 ? `
+  <div class="section">
+    <div class="section-title">Scripts (package.json)</div>
+    <div class="scripts">
+      ${Object.entries(pkgJson.scripts ?? {}).slice(0, 6).map(
+        ([k, v]) => `<div class="script-row"><span class="script-name">${k}</span><span class="script-cmd">${String(v)}</span></div>`
+      ).join("")}
+    </div>
+  </div>` : ""}
+
+  ${pkgJson ? `
+  <div class="section">
+    <div class="section-title">Package Info</div>
+    <div class="meta-grid">
+      ${pkgJson.version ? `<div class="meta-item"><div class="meta-label">Version</div><div class="meta-value">${pkgJson.version}</div></div>` : ""}
+      ${pkgJson.license ? `<div class="meta-item"><div class="meta-label">License</div><div class="meta-value">${pkgJson.license}</div></div>` : ""}
+      ${pkgJson.engines?.node ? `<div class="meta-item"><div class="meta-label">Node</div><div class="meta-value">${pkgJson.engines.node}</div></div>` : ""}
+      ${Object.keys(pkgJson.dependencies ?? {}).length ? `<div class="meta-item"><div class="meta-label">Dependencies</div><div class="meta-value">${Object.keys(pkgJson.dependencies).length}</div></div>` : ""}
+    </div>
+  </div>` : ""}
+
+  ${readmeSnippet ? `
+  <div class="section">
+    <div class="section-title">README</div>
+    <div class="readme">${readmeSnippet}</div>
+  </div>` : ""}
+
+  <div class="section">
+    <div class="section-title">Files (${files.length}${files.length > 30 ? "+" : ""})</div>
+    ${fileRows}
+  </div>
+
+  <div class="tip">
+    <strong>\u{1F4A1} This is a ${lang} project.</strong> Use the <strong>AI Agent</strong> tab to explore the code \u2014 ask things like <em>"explain the project structure"</em>, <em>"what does server.ts do?"</em>, or <em>"add a new API route"</em>.
+  </div>
+</div>
+</body>
+</html>`);
       return;
     }
     let html = indexFile.content;
@@ -56820,8 +56979,20 @@ router6.post("/projects/:id/ai/chat", async (req, res) => {
   const { message, context, currentFile, imageUrl } = bodyParsed.data;
   const existingFiles = await db.select({ id: filesTable.id, name: filesTable.name, path: filesTable.path, content: filesTable.content, language: filesTable.language }).from(filesTable).where(eq(filesTable.projectId, projectId));
   const fileList = existingFiles.map((f) => `  - ${f.name} (id:${f.id})`).join("\n");
+  const fileNames = existingFiles.map((f) => f.name);
+  const isTS = fileNames.some((n) => n.endsWith(".ts") || n.endsWith(".tsx"));
+  const isPy = fileNames.some((n) => n.endsWith(".py"));
+  const isRust = fileNames.some((n) => n.endsWith(".rs"));
+  const isGo = fileNames.some((n) => n.endsWith(".go"));
+  const hasHtml = fileNames.some((n) => n.endsWith(".html"));
+  const hasPkg = fileNames.includes("package.json");
+  const isNonHtml = !hasHtml && (isTS || isPy || isRust || isGo);
+  const projectType = isTS ? "TypeScript" : isPy ? "Python" : isRust ? "Rust" : isGo ? "Go" : hasHtml ? "HTML/CSS/JS" : "code";
   const systemPrompt = `You are an expert AI coding agent embedded in a cloud IDE.
 You can read, create, edit, and delete files in the user's project.
+
+Project type: ${projectType}${hasPkg ? " (Node.js / npm project)" : ""}
+${isNonHtml ? `This is a ${projectType} source-code project \u2014 NOT an HTML web app. The preview tab shows a project overview panel, not a running server. You should help the user understand, navigate, and edit the source code.` : ""}
 
 Current project files:
 ${fileList || "  (no files yet)"}
@@ -56849,7 +57020,8 @@ Rules:
 - For edit_file: always provide the COMPLETE new file content (not a diff).
 - Use the exact filename from the file list when editing or deleting.
 - CRITICAL: If the project already has files, ALWAYS edit those existing files \u2014 NEVER create new ones unless the user explicitly says "start over", "rebuild from scratch", "new project", or "delete everything".
-- "not working", "broken", "fix it", "make it work", "css not working", "make it working" are FIX requests \u2014 edit the existing CSS or relevant file to resolve the issue.
+- For ${projectType} projects: answer questions about the code, explain architecture, suggest improvements, or make requested edits.
+- "not working", "broken", "fix it", "make it work" are FIX requests \u2014 edit the relevant file to resolve the issue.
 - When user says "make X" or "add X" to an existing project, EDIT the existing files to add the feature.
 - When the user asks to "create", "build", "generate", or "make" something in an EMPTY project (no files listed above), produce working, complete code.
 - When the user asks to "edit", "fix", "update", or "improve", edit the currently open file or the most relevant existing file.
@@ -57245,9 +57417,33 @@ a:hover { text-decoration: underline; }
       actions
     };
   }
-  if (/\bpreview\b|show me|see it live|view it|how does it look|open it/.test(msg)) {
-    const hasHtml = existingFiles.some((f) => f.name.endsWith(".html"));
-    if (!hasHtml) {
+  if (/\bpreview\b|show me|see it live|view it|how does it look|open it|install dep|ready preview/.test(msg)) {
+    const hasHtmlFile2 = existingFiles.some((f) => f.name.endsWith(".html"));
+    const hasTsFiles = existingFiles.some((f) => f.name.endsWith(".ts") || f.name.endsWith(".tsx"));
+    const hasPyFiles = existingFiles.some((f) => f.name.endsWith(".py"));
+    const hasRustFiles = existingFiles.some((f) => f.name.endsWith(".rs"));
+    const hasGoFiles = existingFiles.some((f) => f.name.endsWith(".go"));
+    const hasPkgJson = existingFiles.some((f) => f.name === "package.json");
+    if (!hasHtmlFile2 && (hasTsFiles || hasPyFiles || hasRustFiles || hasGoFiles)) {
+      const lang = hasTsFiles ? "TypeScript" : hasPyFiles ? "Python" : hasRustFiles ? "Rust" : "Go";
+      const tips = hasTsFiles ? `\u2022 **"Explain the project structure"** \u2014 I'll map out the codebase
+\u2022 **"What does \`package.json\` contain?"** \u2014 I'll summarize dependencies
+\u2022 **"Add a new API route for X"** \u2014 I'll edit the right file
+\u2022 **"Explain how the AI chat works"** \u2014 I'll walk through the logic
+\u2022 **"Fix any TypeScript errors in \`server.ts\`"** \u2014 I'll review and patch` : `\u2022 **"Explain the project structure"** \u2014 I'll walk through the files
+\u2022 **"Add a new function to X file"** \u2014 I'll make the edit
+\u2022 **"What does main.${hasPyFiles ? "py" : hasRustFiles ? "rs" : "go"} do?"** \u2014 I'll explain it`;
+      return {
+        reply: `This is a **${lang} project** \u2014 the Preview tab shows a live project overview with the file tree, package info, and README instead of a running server.
+
+Since this is source code, I can help you:
+${tips}
+
+Open any file in the editor and I'll use it as context for my answers.`,
+        actions: []
+      };
+    }
+    if (!hasHtmlFile2) {
       return {
         reply: `The Preview tab shows your project's HTML output. This project doesn't have an \`index.html\` yet, so there's nothing to render.
 

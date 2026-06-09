@@ -41,8 +41,22 @@ router.post("/projects/:id/ai/chat", async (req, res) => {
 
   const fileList = existingFiles.map(f => `  - ${f.name} (id:${f.id})`).join("\n");
 
+  // Detect project type from file extensions
+  const fileNames = existingFiles.map(f => f.name);
+  const isTS = fileNames.some(n => n.endsWith(".ts") || n.endsWith(".tsx"));
+  const isPy = fileNames.some(n => n.endsWith(".py"));
+  const isRust = fileNames.some(n => n.endsWith(".rs"));
+  const isGo = fileNames.some(n => n.endsWith(".go"));
+  const hasHtml = fileNames.some(n => n.endsWith(".html"));
+  const hasPkg = fileNames.includes("package.json");
+  const isNonHtml = !hasHtml && (isTS || isPy || isRust || isGo);
+  const projectType = isTS ? "TypeScript" : isPy ? "Python" : isRust ? "Rust" : isGo ? "Go" : hasHtml ? "HTML/CSS/JS" : "code";
+
   const systemPrompt = `You are an expert AI coding agent embedded in a cloud IDE.
 You can read, create, edit, and delete files in the user's project.
+
+Project type: ${projectType}${hasPkg ? " (Node.js / npm project)" : ""}
+${isNonHtml ? `This is a ${projectType} source-code project — NOT an HTML web app. The preview tab shows a project overview panel, not a running server. You should help the user understand, navigate, and edit the source code.` : ""}
 
 Current project files:
 ${fileList || "  (no files yet)"}
@@ -65,7 +79,8 @@ Rules:
 - For edit_file: always provide the COMPLETE new file content (not a diff).
 - Use the exact filename from the file list when editing or deleting.
 - CRITICAL: If the project already has files, ALWAYS edit those existing files — NEVER create new ones unless the user explicitly says "start over", "rebuild from scratch", "new project", or "delete everything".
-- "not working", "broken", "fix it", "make it work", "css not working", "make it working" are FIX requests — edit the existing CSS or relevant file to resolve the issue.
+- For ${projectType} projects: answer questions about the code, explain architecture, suggest improvements, or make requested edits.
+- "not working", "broken", "fix it", "make it work" are FIX requests — edit the relevant file to resolve the issue.
 - When user says "make X" or "add X" to an existing project, EDIT the existing files to add the feature.
 - When the user asks to "create", "build", "generate", or "make" something in an EMPTY project (no files listed above), produce working, complete code.
 - When the user asks to "edit", "fix", "update", or "improve", edit the currently open file or the most relevant existing file.
@@ -492,10 +507,27 @@ a:hover { text-decoration: underline; }
     };
   }
 
-  // ── Preview intent ────────────────────────────────────────────────────────
-  if (/\bpreview\b|show me|see it live|view it|how does it look|open it/.test(msg)) {
-    const hasHtml = existingFiles.some(f => f.name.endsWith(".html"));
-    if (!hasHtml) {
+  // ── Preview / install dependencies intent ────────────────────────────────
+  if (/\bpreview\b|show me|see it live|view it|how does it look|open it|install dep|ready preview/.test(msg)) {
+    const hasHtmlFile = existingFiles.some(f => f.name.endsWith(".html"));
+    const hasTsFiles  = existingFiles.some(f => f.name.endsWith(".ts") || f.name.endsWith(".tsx"));
+    const hasPyFiles  = existingFiles.some(f => f.name.endsWith(".py"));
+    const hasRustFiles = existingFiles.some(f => f.name.endsWith(".rs"));
+    const hasGoFiles  = existingFiles.some(f => f.name.endsWith(".go"));
+    const hasPkgJson  = existingFiles.some(f => f.name === "package.json");
+
+    if (!hasHtmlFile && (hasTsFiles || hasPyFiles || hasRustFiles || hasGoFiles)) {
+      const lang = hasTsFiles ? "TypeScript" : hasPyFiles ? "Python" : hasRustFiles ? "Rust" : "Go";
+      const tips = hasTsFiles
+        ? `• **"Explain the project structure"** — I'll map out the codebase\n• **"What does \`package.json\` contain?"** — I'll summarize dependencies\n• **"Add a new API route for X"** — I'll edit the right file\n• **"Explain how the AI chat works"** — I'll walk through the logic\n• **"Fix any TypeScript errors in \`server.ts\`"** — I'll review and patch`
+        : `• **"Explain the project structure"** — I'll walk through the files\n• **"Add a new function to X file"** — I'll make the edit\n• **"What does main.${hasPyFiles ? "py" : hasRustFiles ? "rs" : "go"} do?"** — I'll explain it`;
+      return {
+        reply: `This is a **${lang} project** — the Preview tab shows a live project overview with the file tree, package info, and README instead of a running server.\n\nSince this is source code, I can help you:\n${tips}\n\nOpen any file in the editor and I'll use it as context for my answers.`,
+        actions: [],
+      };
+    }
+
+    if (!hasHtmlFile) {
       return {
         reply: `The Preview tab shows your project's HTML output. This project doesn't have an \`index.html\` yet, so there's nothing to render.\n\nSay **"Create a web app"** and I'll build a full HTML/CSS/JS project you can preview instantly!`,
         actions: [],
