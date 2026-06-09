@@ -64,8 +64,11 @@ Rules:
 - For create_file: always provide the complete file content, never partial.
 - For edit_file: always provide the COMPLETE new file content (not a diff).
 - Use the exact filename from the file list when editing or deleting.
-- When the user asks to "create", "build", "generate", or "make" something, produce working, complete code.
-- When the user asks to "edit", "fix", "update", or "improve", edit the currently open file.
+- CRITICAL: If the project already has files, ALWAYS edit those existing files — NEVER create new ones unless the user explicitly says "start over", "rebuild from scratch", "new project", or "delete everything".
+- "not working", "broken", "fix it", "make it work", "css not working", "make it working" are FIX requests — edit the existing CSS or relevant file to resolve the issue.
+- When user says "make X" or "add X" to an existing project, EDIT the existing files to add the feature.
+- When the user asks to "create", "build", "generate", or "make" something in an EMPTY project (no files listed above), produce working, complete code.
+- When the user asks to "edit", "fix", "update", or "improve", edit the currently open file or the most relevant existing file.
 - When the user asks to "delete" or "remove" a file, use delete_file.
 - reply should be concise (1-3 sentences) describing what you did.
 - ALWAYS return valid JSON. No trailing commas. No comments inside JSON.`;
@@ -262,7 +265,9 @@ function generateAgenticFallback(
   // ── Design / visual improvement intent ───────────────────────────────────
   // Catches: "preview not good", "design not good", "make it look better",
   // "fix design", "redesign", "looks bad", "ugly", "make it pretty", etc.
-  const designIntent =
+  const isFixRequest = /not working|not work\b|make.*work|\bbroken\b|doesn.?t work|isn.?t work|\bfix it\b|css.*(not|fix|broken|issue|problem|work)/.test(msg);
+
+  const designIntent = isFixRequest ||
     /redesign|make.*(good|better|nice|pretty|beautiful|modern|professional)|good.*(design|look|ui)|design.*(bad|not|ugly|broken|wrong|fix|improve|properly)|preview.*(bad|not|ugly|broken|wrong|fix|improve|properly|not good)|not.*(good|nice|proper|right).*(design|preview|look|ui)|look.*(bad|ugly|broken|wrong)|fix.*(design|ui|style|look|preview|css)|improve.*(design|ui|style|look)|make.*(ui|design|style|css).*(better|good|nice)|better.*(ui|design|style|look)|preview text|text.*(design|preview)|ugly|bland|boring/.test(msg);
 
   if (designIntent && existingFiles.length > 0) {
@@ -478,8 +483,11 @@ a:hover { text-decoration: underline; }
     }
 
     const themeName = wantsDark ? "dark" : wantsBlue ? "blue" : wantsGreen ? "green" : wantsPurple ? "purple" : "indigo";
+    const replyText = isFixRequest
+      ? `Fixed the CSS! Rewrote style.css with a clean modern design — ${cssFile ? "replaced the existing CSS" : "created a fresh style.css and linked it in index.html"}. Hit Preview to see it!`
+      : `Redesigned the UI with a clean, modern ${themeName} theme — better typography, card layouts, hover effects, and responsive spacing. Hit Preview to see it!`;
     return {
-      reply: `Redesigned the UI with a clean, modern ${themeName} theme — better typography, card layouts, hover effects, and responsive spacing. Hit Preview to see it!`,
+      reply: replyText,
       actions,
     };
   }
