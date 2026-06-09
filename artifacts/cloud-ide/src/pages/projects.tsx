@@ -1,14 +1,17 @@
 import { useState } from "react";
-import { Link } from "wouter";
-import { Plus, Search, FolderOpen, Trash2, Archive, Globe, Lock, Code2 } from "lucide-react";
+import { Link, useLocation } from "wouter";
+import { Plus, Search, FolderOpen, Trash2, Globe, Lock, Code2, MoreVertical } from "lucide-react";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useListProjects, useDeleteProject, getListProjectsQueryKey, getGetProjectStatsQueryKey, getGetRecentProjectsQueryKey } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
-import { Skeleton } from "@/components/ui/skeleton";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,8 +21,16 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  useListProjects,
+  useDeleteProject,
+  getListProjectsQueryKey,
+  getGetProjectStatsQueryKey,
+  getGetRecentProjectsQueryKey,
+} from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const LANGUAGE_COLORS: Record<string, string> = {
   javascript: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
@@ -41,37 +52,53 @@ function formatDate(dateString: string) {
 }
 
 export default function Projects() {
+  const [, navigate] = useLocation();
   const [search, setSearch] = useState("");
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+  const [confirmDeleteName, setConfirmDeleteName] = useState("");
   const queryClient = useQueryClient();
   const { data: projects, isLoading } = useListProjects();
   const deleteMutation = useDeleteProject();
 
-  const filtered = (projects ?? []).filter((p) =>
-    p.name.toLowerCase().includes(search.toLowerCase()) ||
-    p.language.toLowerCase().includes(search.toLowerCase())
+  const filtered = (projects ?? []).filter(
+    (p) =>
+      p.name.toLowerCase().includes(search.toLowerCase()) ||
+      p.language.toLowerCase().includes(search.toLowerCase())
   );
 
-  function handleDelete(id: number) {
-    deleteMutation.mutate({ id }, {
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: getListProjectsQueryKey() });
-        queryClient.invalidateQueries({ queryKey: getGetProjectStatsQueryKey() });
-        queryClient.invalidateQueries({ queryKey: getGetRecentProjectsQueryKey() });
-      },
-    });
+  function requestDelete(id: number, name: string) {
+    setConfirmDeleteId(id);
+    setConfirmDeleteName(name);
+  }
+
+  function confirmDelete() {
+    if (!confirmDeleteId) return;
+    deleteMutation.mutate(
+      { id: confirmDeleteId },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getListProjectsQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getGetProjectStatsQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getGetRecentProjectsQueryKey() });
+        },
+      }
+    );
+    setConfirmDeleteId(null);
   }
 
   return (
     <Layout>
       <div className="p-4 sm:p-8 max-w-6xl mx-auto w-full space-y-5 sm:space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight mb-1">Projects</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight mb-1">Projects</h1>
             <p className="text-muted-foreground text-sm">All your projects in one place.</p>
           </div>
           <Link href="/projects/new">
-            <Button className="gap-2">
-              <Plus size={16} /> New Project
+            <Button className="gap-2 shrink-0">
+              <Plus size={16} />
+              <span className="hidden sm:inline">New Project</span>
+              <span className="sm:hidden">New</span>
             </Button>
           </Link>
         </div>
@@ -101,71 +128,84 @@ export default function Projects() {
               {search ? "No projects match your search" : "No projects yet"}
             </h3>
             <p className="text-muted-foreground text-sm mb-6">
-              {search ? "Try a different search term." : "Create your first project to get started."}
+              {search
+                ? "Try a different search term."
+                : "Create your first project to get started."}
             </p>
             {!search && (
               <Link href="/projects/new">
-                <Button><Plus size={16} className="mr-2" /> Create Project</Button>
+                <Button>
+                  <Plus size={16} className="mr-2" /> Create Project
+                </Button>
               </Link>
             )}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filtered.map((project) => (
-              <Card key={project.id} className="group bg-card border-border hover:border-primary/40 transition-all duration-200 hover:shadow-lg hover:shadow-primary/5">
+              <Card
+                key={project.id}
+                className="bg-card border-border hover:border-primary/40 transition-all duration-200 hover:shadow-lg hover:shadow-primary/5"
+              >
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
                       <CardTitle className="text-base truncate">{project.name}</CardTitle>
                       {project.description && (
-                        <p className="text-xs text-muted-foreground mt-1 truncate">{project.description}</p>
+                        <p className="text-xs text-muted-foreground mt-1 truncate">
+                          {project.description}
+                        </p>
                       )}
                     </div>
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive">
-                            <Trash2 size={13} />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Delete Project</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              This will permanently delete <strong>{project.name}</strong> and all its files. This cannot be undone.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction
-                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                              onClick={() => handleDelete(project.id)}
-                            >
-                              Delete
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </div>
+
+                    {/* Always-visible ⋯ menu — works on hover AND touch */}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground"
+                        >
+                          <MoreVertical size={15} />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-40">
+                        <DropdownMenuItem onClick={() => navigate(`/projects/${project.id}`)}>
+                          <FolderOpen size={14} className="mr-2" />
+                          Open
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                          onClick={() => requestDelete(project.id, project.name)}
+                        >
+                          <Trash2 size={14} className="mr-2" />
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </CardHeader>
+
                 <CardContent className="pt-0 space-y-3">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className={`text-xs px-2 py-0.5 rounded border font-mono ${LANGUAGE_COLORS[project.language] ?? "bg-muted text-muted-foreground border-border"}`}>
+                    <span
+                      className={`text-xs px-2 py-0.5 rounded border font-mono ${
+                        LANGUAGE_COLORS[project.language] ??
+                        "bg-muted text-muted-foreground border-border"
+                      }`}
+                    >
                       {project.language}
                     </span>
                     <span className="text-xs text-muted-foreground flex items-center gap-1">
                       {project.isPublic ? <Globe size={11} /> : <Lock size={11} />}
                       {project.isPublic ? "Public" : "Private"}
                     </span>
-                    {project.status === "archived" && (
-                      <span className="text-xs text-muted-foreground flex items-center gap-1">
-                        <Archive size={11} /> Archived
-                      </span>
-                    )}
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-xs text-muted-foreground">Updated {formatDate(project.updatedAt)}</span>
+                    <span className="text-xs text-muted-foreground">
+                      Updated {formatDate(project.updatedAt)}
+                    </span>
                     <Link href={`/projects/${project.id}`}>
                       <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5">
                         <FolderOpen size={12} /> Open
@@ -178,6 +218,31 @@ export default function Projects() {
           </div>
         )}
       </div>
+
+      {/* Single shared AlertDialog — rendered outside the card loop */}
+      <AlertDialog
+        open={!!confirmDeleteId}
+        onOpenChange={(open) => { if (!open) setConfirmDeleteId(null); }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete project?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete <strong>{confirmDeleteName}</strong> and all its
+              files. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={confirmDelete}
+            >
+              {deleteMutation.isPending ? "Deleting…" : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Layout>
   );
 }
