@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { filesTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import {
   ListFilesParams,
   CreateFileParams,
@@ -28,6 +28,34 @@ router.get("/projects/:id/files", async (req, res) => {
     res.json([...seen.values()].map(serializeFile));
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch files" });
+  }
+});
+
+// Removes duplicate file names, keeping the newest (highest id) per name
+router.post("/projects/:id/files/dedup", async (req, res) => {
+  const parsed = ListFilesParams.safeParse({ id: Number(req.params.id) });
+  if (!parsed.success) return res.status(400).json({ error: "Invalid id" });
+  try {
+    const files = await db.select().from(filesTable).where(eq(filesTable.projectId, parsed.data.id));
+    const toDelete: number[] = [];
+    const seen = new Map<string, number>();
+    for (const f of files) {
+      const existing = seen.get(f.name);
+      if (existing === undefined) {
+        seen.set(f.name, f.id);
+      } else if (f.id > existing) {
+        toDelete.push(existing);
+        seen.set(f.name, f.id);
+      } else {
+        toDelete.push(f.id);
+      }
+    }
+    if (toDelete.length > 0) {
+      await db.delete(filesTable).where(inArray(filesTable.id, toDelete));
+    }
+    res.json({ deleted: toDelete.length });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to dedup files" });
   }
 });
 
