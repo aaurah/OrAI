@@ -229,6 +229,12 @@ export default function GitHubPage() {
     setCommitBranch(repo.default_branch);
   }
 
+  // ── Scroll to top when tab changes ────────────────────────────────────────
+  useEffect(() => {
+    const main = document.querySelector("main");
+    if (main) main.scrollTop = 0;
+  }, [tab]);
+
   // ── Tab data loading ───────────────────────────────────────────────────────
 
   useEffect(() => {
