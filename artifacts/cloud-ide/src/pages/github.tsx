@@ -559,8 +559,12 @@ export default function GitHubPage() {
     setImportLoading(true);
     try {
       setImportProgress("Fetching file tree from GitHub…");
-      const tree = await ghApi(`${API}/repos/${selectedRepo.owner.login}/${selectedRepo.name}/git/trees/HEAD?recursive=1`);
-      const blobs: any[] = (tree?.tree ?? [])
+      const defaultBranch = selectedRepo.default_branch || "main";
+      const tree = await ghApi(`${API}/repos/${selectedRepo.owner.login}/${selectedRepo.name}/git/trees/${defaultBranch}?recursive=1`);
+      if (!tree?.tree) {
+        throw new Error(tree?.message ?? "Failed to fetch repository file tree");
+      }
+      const blobs: any[] = tree.tree
         .filter((f: any) => f.type === "blob" && f.path && !f.path.startsWith(".git"))
         .slice(0, 50);
 
