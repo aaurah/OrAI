@@ -56418,8 +56418,13 @@ var MIME = {
 router2.get("/projects/:id/preview", async (req, res) => {
   try {
     const projectId = Number(req.params.id);
-    const [indexFile] = await db.select().from(filesTable).where(and(eq(filesTable.projectId, projectId), eq(filesTable.name, "index.html"))).orderBy(desc(filesTable.id));
-    if (!indexFile || !indexFile.content) {
+    const allFiles = await db.select().from(filesTable).where(eq(filesTable.projectId, projectId)).orderBy(desc(filesTable.id));
+    const fileMap = /* @__PURE__ */ new Map();
+    for (const f of allFiles) {
+      if (!fileMap.has(f.name)) fileMap.set(f.name, f);
+    }
+    const indexFile = fileMap.get("index.html");
+    if (!indexFile?.content) {
       res.status(200).setHeader("Content-Type", "text/html; charset=utf-8").send(`<!DOCTYPE html><html><head><meta charset="UTF-8"/>
 <title>No Preview</title>
 <style>
@@ -56437,9 +56442,27 @@ padding:12px 20px;font-size:13px;color:#58a6ff;}
 </div></body></html>`);
       return;
     }
+    let html = indexFile.content;
+    html = html.replace(/<link([^>]+)>/gi, (match, attrs) => {
+      if (!/rel=["']stylesheet["']/i.test(attrs)) return match;
+      const hrefMatch = /href=["']([^"']+)["']/i.exec(attrs);
+      if (!hrefMatch) return match;
+      const fname = hrefMatch[1].split("/").pop() ?? hrefMatch[1];
+      const file2 = fileMap.get(fname);
+      if (file2?.content) return `<style>${file2.content}</style>`;
+      return match;
+    });
+    html = html.replace(/<script([^>]*)><\/script>/gi, (match, attrs) => {
+      const srcMatch = /src=["']([^"']+)["']/i.exec(attrs);
+      if (!srcMatch) return match;
+      const fname = srcMatch[1].split("/").pop() ?? srcMatch[1];
+      const file2 = fileMap.get(fname);
+      if (file2?.content) return `<script>${file2.content}</script>`;
+      return match;
+    });
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     res.setHeader("X-Frame-Options", "SAMEORIGIN");
-    res.send(indexFile.content);
+    res.send(html);
   } catch {
     res.status(500).send("Preview error");
   }
