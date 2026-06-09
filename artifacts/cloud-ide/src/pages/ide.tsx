@@ -6,6 +6,7 @@ import {
   LayoutPanelLeft, Code2, Loader2, FolderOpen,
   FilePlus, FilePen, FileX, AlertCircle, Sparkles,
   Monitor, RefreshCw, Paperclip, ImageIcon,
+  ChevronRight, ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -113,6 +114,113 @@ function ActionChips({ actions, onOpen }: { actions: ExecutedAction[]; onOpen: (
 
 // ── FileTree ─────────────────────────────────────────────────────────────────
 
+type TreeNode = {
+  name: string;
+  fullPath: string;
+  isDir: boolean;
+  children: TreeNode[];
+  fileId?: number;
+};
+
+function buildFileTree(
+  files: Array<{ id: number; name: string; path: string; type: string }>
+): TreeNode[] {
+  const dirMap = new Map<string, TreeNode>();
+  const root: TreeNode[] = [];
+
+  function ensureDir(segments: string[]): TreeNode {
+    const key = segments.join("/");
+    if (dirMap.has(key)) return dirMap.get(key)!;
+    const node: TreeNode = { name: segments[segments.length - 1], fullPath: key, isDir: true, children: [] };
+    dirMap.set(key, node);
+    if (segments.length === 1) {
+      root.push(node);
+    } else {
+      const parent = ensureDir(segments.slice(0, -1));
+      parent.children.push(node);
+    }
+    return node;
+  }
+
+  for (const file of files) {
+    const parts = file.name.split("/");
+    const fileName = parts[parts.length - 1];
+    const fileNode: TreeNode = { name: fileName, fullPath: file.name, isDir: false, children: [], fileId: file.id };
+    if (parts.length === 1) {
+      root.push(fileNode);
+    } else {
+      const dir = ensureDir(parts.slice(0, -1));
+      dir.children.push(fileNode);
+    }
+  }
+
+  function sortNodes(nodes: TreeNode[]): TreeNode[] {
+    nodes.sort((a, b) => {
+      if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    });
+    nodes.forEach(n => { if (n.isDir) sortNodes(n.children); });
+    return nodes;
+  }
+
+  return sortNodes(root);
+}
+
+function FileTreeNode({
+  node, selectedId, onSelect, onDelete, showHidden, depth, expanded, onToggle,
+}: {
+  node: TreeNode; selectedId: number | null;
+  onSelect: (id: number) => void; onDelete: (id: number) => void;
+  showHidden: boolean; depth: number;
+  expanded: Set<string>; onToggle: (path: string) => void;
+}) {
+  if (!showHidden && node.name.startsWith(".")) return null;
+  const indent = depth * 12;
+
+  if (node.isDir) {
+    const open = expanded.has(node.fullPath);
+    return (
+      <div>
+        <div
+          className="group flex items-center gap-1 py-[5px] rounded cursor-pointer text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
+          style={{ paddingLeft: `${8 + indent}px`, paddingRight: "8px" }}
+          onClick={() => onToggle(node.fullPath)}
+        >
+          {open ? <ChevronDown size={11} className="shrink-0 opacity-60" /> : <ChevronRight size={11} className="shrink-0 opacity-60" />}
+          <Folder size={12} className="shrink-0 text-sky-400/80" />
+          <span className="flex-1 truncate font-mono text-xs">{node.name}</span>
+        </div>
+        {open && node.children.map(child => (
+          <FileTreeNode key={child.fullPath} node={child} selectedId={selectedId}
+            onSelect={onSelect} onDelete={onDelete} showHidden={showHidden}
+            depth={depth + 1} expanded={expanded} onToggle={onToggle} />
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={`group flex items-center gap-1.5 py-[5px] md:py-[5px] rounded cursor-pointer transition-colors ${
+        selectedId === node.fileId
+          ? "bg-primary/20 text-foreground"
+          : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+      }`}
+      style={{ paddingLeft: `${8 + indent}px`, paddingRight: "8px" }}
+      onClick={() => node.fileId !== undefined && onSelect(node.fileId)}
+    >
+      <FileIcon size={12} className="shrink-0" />
+      <span className="flex-1 truncate font-mono text-xs">{node.name}</span>
+      <button
+        className="opacity-100 md:opacity-0 md:group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity p-0.5 shrink-0"
+        onClick={(e) => { e.stopPropagation(); node.fileId !== undefined && onDelete(node.fileId); }}
+      >
+        <Trash2 size={11} />
+      </button>
+    </div>
+  );
+}
+
 function FileTree({
   files, selectedId, onSelect, onDelete, showHidden,
 }: {
@@ -122,32 +230,38 @@ function FileTree({
   onDelete: (id: number) => void;
   showHidden: boolean;
 }) {
-  const visible = showHidden ? files : files.filter(f => !f.name.startsWith("."));
-  if (!visible.length && !files.length) return <div className="p-4 text-xs text-muted-foreground">No files yet.</div>;
-  if (!visible.length) return <div className="p-4 text-xs text-muted-foreground">All files are hidden. Toggle · to show them.</div>;
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
+
+  // Auto-expand all directories when the file list changes
+  useEffect(() => {
+    const dirs = new Set<string>();
+    files.forEach(f => {
+      const parts = f.name.split("/");
+      for (let i = 1; i < parts.length; i++) dirs.add(parts.slice(0, i).join("/"));
+    });
+    if (dirs.size > 0) setExpanded(prev => new Set([...prev, ...dirs]));
+  }, [files.length]);
+
+  function toggle(path: string) {
+    setExpanded(prev => {
+      const next = new Set(prev);
+      if (next.has(path)) next.delete(path); else next.add(path);
+      return next;
+    });
+  }
+
+  if (!files.length) return <div className="p-4 text-xs text-muted-foreground">No files yet.</div>;
+
+  const tree = buildFileTree(files);
+  const anyVisible = tree.some(n => showHidden || !n.name.startsWith("."));
+  if (!anyVisible) return <div className="p-4 text-xs text-muted-foreground">All files are hidden. Toggle · to show them.</div>;
+
   return (
-    <div className="space-y-0.5 p-2">
-      {visible.map((f) => (
-        <div
-          key={f.id}
-          className={`group flex items-center gap-1.5 px-2 py-2 md:py-1.5 rounded cursor-pointer text-sm transition-colors ${
-            selectedId === f.id
-              ? "bg-primary/20 text-foreground"
-              : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
-          }`}
-          onClick={() => onSelect(f.id)}
-        >
-          {f.type === "directory"
-            ? <Folder size={13} className="shrink-0" />
-            : <FileIcon size={13} className="shrink-0" />}
-          <span className="flex-1 truncate font-mono text-xs">{f.name}</span>
-          <button
-            className="opacity-100 md:opacity-0 md:group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity p-0.5"
-            onClick={(e) => { e.stopPropagation(); onDelete(f.id); }}
-          >
-            <Trash2 size={11} />
-          </button>
-        </div>
+    <div className="py-1 px-1">
+      {tree.map(node => (
+        <FileTreeNode key={node.fullPath} node={node} selectedId={selectedId}
+          onSelect={onSelect} onDelete={onDelete} showHidden={showHidden}
+          depth={0} expanded={expanded} onToggle={toggle} />
       ))}
     </div>
   );

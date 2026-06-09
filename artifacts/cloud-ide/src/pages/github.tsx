@@ -602,7 +602,7 @@ export default function GitHubPage() {
       ]);
       // Binary / non-text extensions to skip
       const SKIP_EXTS = new Set([
-        "png", "jpg", "jpeg", "gif", "webp", "svg", "ico", "bmp", "tiff",
+        "png", "jpg", "jpeg", "gif", "webp", "ico", "bmp", "tiff",
         "woff", "woff2", "ttf", "eot", "otf",
         "mp4", "mp3", "wav", "ogg", "webm", "avi",
         "zip", "tar", "gz", "7z", "rar",
