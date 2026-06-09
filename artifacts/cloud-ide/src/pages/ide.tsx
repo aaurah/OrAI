@@ -113,17 +113,20 @@ function ActionChips({ actions, onOpen }: { actions: ExecutedAction[]; onOpen: (
 // ── FileTree ─────────────────────────────────────────────────────────────────
 
 function FileTree({
-  files, selectedId, onSelect, onDelete,
+  files, selectedId, onSelect, onDelete, showHidden,
 }: {
   files: Array<{ id: number; name: string; path: string; type: string }>;
   selectedId: number | null;
   onSelect: (id: number) => void;
   onDelete: (id: number) => void;
+  showHidden: boolean;
 }) {
-  if (!files.length) return <div className="p-4 text-xs text-muted-foreground">No files yet.</div>;
+  const visible = showHidden ? files : files.filter(f => !f.name.startsWith("."));
+  if (!visible.length && !files.length) return <div className="p-4 text-xs text-muted-foreground">No files yet.</div>;
+  if (!visible.length) return <div className="p-4 text-xs text-muted-foreground">All files are hidden. Toggle · to show them.</div>;
   return (
     <div className="space-y-0.5 p-2">
-      {files.map((f) => (
+      {visible.map((f) => (
         <div
           key={f.id}
           className={`group flex items-center gap-1.5 px-2 py-2 md:py-1.5 rounded cursor-pointer text-sm transition-colors ${
@@ -179,6 +182,7 @@ export default function IDE() {
   const [aiInput, setAiInput]               = useState("");
   const [mobileTab, setMobileTab]           = useState<MobileTab>("files");
   const [attachedImage, setAttachedImage]   = useState<{ dataUrl: string; name: string } | null>(null);
+  const [showHiddenFiles, setShowHiddenFiles] = useState(false);
   const chatEndRef                          = useRef<HTMLDivElement>(null);
   const fileInputRef                        = useRef<HTMLInputElement>(null);
   const [MonacoEditor, setMonacoEditor]     = useState<any>(null);
@@ -596,15 +600,22 @@ export default function IDE() {
     <div className="flex flex-col h-full bg-sidebar overflow-hidden">
       <div className="flex items-center justify-between px-3 py-2 border-b border-sidebar-border shrink-0">
         <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Files</span>
-        <button className="text-muted-foreground hover:text-foreground" onClick={() => setShowNewFile(true)}>
-          <Plus size={14} />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            title={showHiddenFiles ? "Hide dotfiles" : "Show dotfiles"}
+            onClick={() => setShowHiddenFiles(v => !v)}
+            className={`text-[10px] font-mono px-1 rounded transition-colors ${showHiddenFiles ? "text-foreground bg-muted" : "text-muted-foreground hover:text-foreground"}`}
+          >·</button>
+          <button className="text-muted-foreground hover:text-foreground" onClick={() => setShowNewFile(true)}>
+            <Plus size={14} />
+          </button>
+        </div>
       </div>
       {filesLoading ? (
         <div className="p-3 space-y-2">{[1,2,3].map(i => <Skeleton key={i} className="h-6 rounded" />)}</div>
       ) : (
         <div className="flex-1 overflow-auto ide-scroll">
-          <FileTree files={files ?? []} selectedId={selectedFileId} onSelect={selectFile} onDelete={handleDeleteFile} />
+          <FileTree files={files ?? []} selectedId={selectedFileId} onSelect={selectFile} onDelete={handleDeleteFile} showHidden={showHiddenFiles} />
         </div>
       )}
     </div>
