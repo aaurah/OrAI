@@ -229,22 +229,255 @@ function generateAgenticFallback(
     };
   }
 
-  // ── Edit current file (with specific instruction) ─────────────────────────
-  if (/fix|edit|improve|update|refactor|change|modify|add|remove/.test(msg) && currentFile) {
-    const target = existingFiles.find(f => msg.includes(f.name.toLowerCase()));
+  // ── Design / visual improvement intent ───────────────────────────────────
+  // Catches: "preview not good", "design not good", "make it look better",
+  // "fix design", "redesign", "looks bad", "ugly", "make it pretty", etc.
+  const designIntent =
+    /redesign|make.*(good|better|nice|pretty|beautiful|modern|professional)|good.*(design|look|ui)|design.*(bad|not|ugly|broken|wrong|fix|improve|properly)|preview.*(bad|not|ugly|broken|wrong|fix|improve|properly|not good)|not.*(good|nice|proper|right).*(design|preview|look|ui)|look.*(bad|ugly|broken|wrong)|fix.*(design|ui|style|look|preview|css)|improve.*(design|ui|style|look)|make.*(ui|design|style|css).*(better|good|nice)|better.*(ui|design|style|look)|preview text|text.*(design|preview)|ugly|bland|boring/.test(msg);
+
+  if (designIntent && existingFiles.length > 0) {
+    const cssFile = existingFiles.find(f => f.name === "style.css");
+    const htmlFile = existingFiles.find(f => f.name === "index.html");
+
+    // Detect color preference from message
+    const wantsBlue   = /blue/.test(msg);
+    const wantsGreen  = /green/.test(msg);
+    const wantsPurple = /purple|violet/.test(msg);
+    const wantsDark   = /dark/.test(msg);
+
+    const primary   = wantsBlue ? "#3b82f6" : wantsGreen ? "#10b981" : wantsPurple ? "#8b5cf6" : "#6366f1";
+    const primaryDk = wantsBlue ? "#2563eb" : wantsGreen ? "#059669" : wantsPurple ? "#7c3aed" : "#4f46e5";
+    const bg        = wantsDark ? "#0f172a" : "#f8fafc";
+    const surface   = wantsDark ? "#1e293b" : "#ffffff";
+    const text       = wantsDark ? "#f1f5f9" : "#1e293b";
+    const textMuted  = wantsDark ? "#94a3b8" : "#64748b";
+    const border     = wantsDark ? "#334155" : "#e2e8f0";
+
+    const newCss = `/* ── Redesigned by AI ────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --primary:   ${primary};
+  --primary-dk:${primaryDk};
+  --bg:        ${bg};
+  --surface:   ${surface};
+  --text:      ${text};
+  --muted:     ${textMuted};
+  --border:    ${border};
+  --radius:    12px;
+  --shadow:    0 4px 24px rgba(0,0,0,${wantsDark ? ".4" : ".08"});
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  line-height: 1.6;
+}
+
+/* ── Layout ── */
+.app, main, .container, #app {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 32px 20px;
+}
+
+/* ── Typography ── */
+h1 { font-size: clamp(1.6rem, 4vw, 2.2rem); font-weight: 800; letter-spacing: -0.02em; margin-bottom: 8px; color: var(--text); }
+h2 { font-size: 1.25rem; font-weight: 700; margin-bottom: 12px; color: var(--text); }
+h3 { font-size: 1rem; font-weight: 600; color: var(--text); }
+p  { color: var(--muted); margin-bottom: 12px; }
+
+/* ── Cards / panels ── */
+.card, .panel, .box, .section, .today, .quiz-box, .result, form,
+[class*="-card"], [class*="-box"], [class*="-panel"] {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 24px;
+  margin-bottom: 16px;
+}
+
+/* ── Buttons ── */
+button, .btn, [type="submit"] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 20px;
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s, box-shadow 0.15s;
+  box-shadow: 0 2px 8px ${primary}40;
+}
+button:hover, .btn:hover { background: var(--primary-dk); transform: translateY(-1px); box-shadow: 0 4px 14px ${primary}50; }
+button:active { transform: translateY(0); }
+button.secondary, .btn-secondary {
+  background: var(--surface);
+  color: var(--primary);
+  border: 1.5px solid var(--primary);
+  box-shadow: none;
+}
+button.secondary:hover { background: ${primary}10; }
+
+/* ── Inputs ── */
+input, textarea, select {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.95rem;
+  color: var(--text);
+  background: var(--surface);
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+input:focus, textarea:focus, select:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px ${primary}25;
+}
+
+/* ── Lists ── */
+ul, ol { list-style: none; }
+li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  margin-bottom: 8px;
+  transition: box-shadow 0.15s;
+}
+li:hover { box-shadow: 0 2px 10px rgba(0,0,0,0.07); }
+li span { flex: 1; color: var(--text); }
+li.done span { text-decoration: line-through; color: var(--muted); }
+
+/* ── Header / nav ── */
+header, nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 1px 4px rgba(0,0,0,.06);
+  margin-bottom: 32px;
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+header h1, nav h1 { font-size: 1.25rem; margin: 0; }
+
+/* ── Weather specific ── */
+.temp-big { font-size: 4.5rem; font-weight: 200; color: var(--primary); line-height: 1; margin: 8px 0; }
+.forecast  { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px; }
+.day-card  { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 10px; text-align: center; }
+.day-icon  { font-size: 1.8rem; margin: 6px 0; }
+.day-high  { font-weight: 700; color: var(--text); }
+.day-low   { font-size: 0.8rem; color: var(--muted); }
+
+/* ── Calculator specific ── */
+.calc      { background: var(--surface); border-radius: 20px; padding: 20px; width: 300px; margin: auto; box-shadow: var(--shadow); }
+.display   { text-align: right; padding: 16px; }
+.result    { font-size: 3rem; font-weight: 200; color: var(--text); }
+.buttons   { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.buttons button { height: 64px; border-radius: 14px; font-size: 1.1rem; }
+.buttons button.op { background: var(--primary); }
+
+/* ── Misc utilities ── */
+.input-row, .action-row { display: flex; gap: 8px; margin-bottom: 20px; }
+.input-row input, .action-row input { flex: 1; width: auto; }
+.footer, .hint, .meta { font-size: 0.8rem; color: var(--muted); text-align: center; margin-top: 12px; }
+.badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 0.75rem; font-weight: 600; background: ${primary}20; color: var(--primary); }
+.divider { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+img { max-width: 100%; border-radius: 8px; }
+a   { color: var(--primary); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* ── Quiz / game specific ── */
+.question { font-size: 1.1rem; font-weight: 600; margin-bottom: 16px; color: var(--text); }
+.option   { width: 100%; text-align: left; margin-bottom: 8px; background: var(--surface); color: var(--text); border: 1.5px solid var(--border); box-shadow: none; }
+.option:hover { border-color: var(--primary); background: ${primary}08; }
+.option.correct { background: #dcfce7; border-color: #22c55e; color: #15803d; }
+.option.wrong   { background: #fee2e2; border-color: #ef4444; color: #b91c1c; }
+.score { font-size: 1.5rem; font-weight: 700; color: var(--primary); text-align: center; }
+
+/* ── Progress bar ── */
+.progress { background: var(--border); border-radius: 999px; height: 6px; margin: 12px 0; overflow: hidden; }
+.progress-fill { height: 100%; background: var(--primary); border-radius: 999px; transition: width 0.4s; }
+
+/* ── Responsive ── */
+@media (max-width: 480px) {
+  .app, main, .container, #app { padding: 16px 12px; }
+  h1 { font-size: 1.4rem; }
+  .temp-big { font-size: 3rem; }
+  .forecast { grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); }
+}`;
+
+    const actions: FileAction[] = [];
+    if (cssFile) {
+      actions.push({ type: "edit_file", filename: "style.css", content: newCss });
+    } else {
+      actions.push({ type: "create_file", filename: "style.css", language: "css", content: newCss });
+    }
+
+    // Also update HTML if it's missing charset/viewport/link
+    if (htmlFile && htmlFile.content) {
+      let html = htmlFile.content;
+      let changed = false;
+      if (!html.includes('charset')) {
+        html = html.replace('<head>', '<head>\n  <meta charset="UTF-8"/>');
+        changed = true;
+      }
+      if (!html.includes('viewport')) {
+        html = html.replace('<head>', '<head>\n  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>');
+        changed = true;
+      }
+      if (!html.includes('style.css')) {
+        html = html.replace('</head>', '  <link rel="stylesheet" href="style.css"/>\n</head>');
+        changed = true;
+      }
+      if (changed) actions.push({ type: "edit_file", filename: "index.html", content: html });
+    }
+
+    const themeName = wantsDark ? "dark" : wantsBlue ? "blue" : wantsGreen ? "green" : wantsPurple ? "purple" : "indigo";
+    return {
+      reply: `Redesigned the UI with a clean, modern ${themeName} theme — better typography, card layouts, hover effects, and responsive spacing. Hit Preview to see it!`,
+      actions,
+    };
+  }
+
+  // ── Edit / fix intent with existing files ─────────────────────────────────
+  if (/fix|edit|improve|update|refactor|change|modify/.test(msg) && existingFiles.length > 0) {
+    const target = existingFiles.find(f => msg.includes(f.name.toLowerCase()))
+                ?? existingFiles.find(f => currentFile && f.name === currentFile)
+                ?? existingFiles.find(f => f.name === "style.css");
+
     if (target && target.content) {
-      // Has a target file with content — try to apply a simple transformation
       if (/dark mode|dark theme/.test(msg)) {
         return {
           reply: `Added dark mode to ${target.name}.`,
-          actions: [{ type: "edit_file", filename: target.name, content: target.content.includes("background") ? target.content.replace(/background:\s*#(?:fff|white|f8fafc|f0f0f0)/gi, "background: #0d1117").replace(/color:\s*#(?:000|111|222|333|1e293b)/gi, "color: #e6edf3") : target.content + "\n/* Dark mode */\nbody { background: #0d1117; color: #e6edf3; }" }],
+          actions: [{ type: "edit_file", filename: target.name, content: target.content
+            .replace(/background:\s*#(?:fff|white|f8fafc|f0f4f8|f1f5f9|f0f0f0)[^;]*/gi, "background: #0d1117")
+            .replace(/color:\s*#(?:000|111|222|333|1e293b|0f172a)[^;]*/gi, "color: #e6edf3") +
+            "\n/* Dark mode override */\nbody { background: #0d1117 !important; color: #e6edf3 !important; }"
+          }],
         };
       }
     }
-    return {
-      reply: `I can see ${currentFile} in the editor. Describe exactly what change you want — for example:\n• "Add dark mode"\n• "Add a submit button"\n• "Change the color scheme to blue"\n• "Add form validation"\n\nI'll apply it directly to the file.`,
-      actions: [],
-    };
+    if (currentFile) {
+      return {
+        reply: `I can see \`${currentFile}\` is open. Tell me exactly what to change — for example:\n• "Add dark mode"\n• "Change color to blue"\n• "Add a submit button"\n• "Add form validation"\n\nI'll edit the file directly.`,
+        actions: [],
+      };
+    }
   }
 
   // ── Weather app ───────────────────────────────────────────────────────────
@@ -1012,9 +1245,18 @@ button:hover { background: #4f46e5; }
   }
 
   // ── Smart default ──────────────────────────────────────────────────────────
-  // The message didn't match any pattern — acknowledge it and suggest options
+  // If there are existing files, guide the user towards useful actions
+  if (existingFiles.length > 0) {
+    const fileNames = existingFiles.map(f => f.name).join(", ");
+    return {
+      reply: `Your project has: **${fileNames}**\n\nHere's what I can do:\n• **"Redesign"** — improve the look and layout\n• **"Make it dark mode"** — switch to a dark theme\n• **"Add a contact form"** — add a new section\n• **"Change colors to blue"** — restyle with a different palette\n• **"Add animations"** — make it feel more dynamic\n\nOr describe exactly what you want changed!`,
+      actions: [],
+    };
+  }
+
+  // No files yet — suggest building something
   return {
-    reply: `I got your message: "${message}"\n\nI'm best at building web apps! Try one of these:\n• "Create a weather app"\n• "Build a todo list"\n• "Make a portfolio website"\n• "Create a landing page"\n• "Build a quiz app"\n• "Create a login page"\n• "Make a 3-page website"\n\nOr describe what you want and I'll do my best to build it!`,
+    reply: `I can build full web apps for you! Try:\n• "Create a weather app"\n• "Build a todo list"\n• "Make a portfolio website"\n• "Create a landing page"\n• "Build a quiz app"\n• "Create a login page"\n• "Make a 3-page website"\n• "Build a calculator"\n\nOr describe what you want and I'll build it!`,
     actions: [],
   };
 }
