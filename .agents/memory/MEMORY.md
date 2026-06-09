@@ -1,0 +1,2 @@
+- [GitHub Integration](github-integration.md) — Full GitHub integration uses PAT auth via x-github-token header or GITHUB_TOKEN env; Express 5 wildcards must be named (*name syntax)
+- [Express 5 wildcards](express5-wildcards.md) — path-to-regexp v8 requires named wildcards: use *name not *, and avoid :param(*) syntax

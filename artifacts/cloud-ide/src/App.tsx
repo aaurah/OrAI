@@ -13,6 +13,7 @@ import Deployments from "@/pages/deployments";
 import DeploymentDetail from "@/pages/deployment-detail";
 import Settings from "@/pages/settings";
 import Admin from "@/pages/admin";
+import GitHub from "@/pages/github";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -34,6 +35,7 @@ function Router() {
       <Route path="/deployments/:id" component={DeploymentDetail} />
       <Route path="/settings" component={Settings} />
       <Route path="/admin" component={Admin} />
+      <Route path="/github" component={GitHub} />
       <Route component={NotFound} />
     </Switch>
   );

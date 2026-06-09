@@ -6,6 +6,7 @@ import deploymentsRouter from "./deployments";
 import dnsRouter from "./dns";
 import aiRouter from "./ai";
 import templatesRouter from "./templates";
+import githubRouter from "./github";
 
 const router: IRouter = Router();
 
@@ -16,5 +17,6 @@ router.use(deploymentsRouter);
 router.use(dnsRouter);
 router.use(aiRouter);
 router.use(templatesRouter);
+router.use(githubRouter);
 
 export default router;

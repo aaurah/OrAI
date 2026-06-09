@@ -1,12 +1,13 @@
 import React, { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, FolderKanban, Rocket, Settings, TerminalSquare, Menu, X, Shield } from "lucide-react";
+import { LayoutDashboard, FolderKanban, Rocket, Settings, TerminalSquare, Menu, X, Shield, Github } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const links = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/projects", label: "Projects", icon: FolderKanban },
   { href: "/deployments", label: "Deployments", icon: Rocket },
+  { href: "/github", label: "GitHub", icon: Github },
   { href: "/settings", label: "Settings", icon: Settings },
   { href: "/admin", label: "Admin", icon: Shield },
 ];
