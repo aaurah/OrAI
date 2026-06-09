@@ -57052,7 +57052,9 @@ Rules:
 - reply should be concise (1-3 sentences) describing what you did.
 - ALWAYS return valid JSON. No trailing commas. No comments inside JSON.`;
     let aiResult;
+    console.log(`[AI Chat] Project: ${projectId}, Message: "${message}", Files: ${existingFiles.length}, OpenAI Key: ${OPENAI_KEY ? "\u2713" : "\u2717"}`);
     if (!OPENAI_KEY) {
+      console.warn("[AI Chat] No OpenAI API key - using fallback");
       aiResult = generateAgenticFallback(message, existingFiles, currentFile ?? null);
     } else {
       aiResult = await callOpenAI(systemPrompt, message, imageUrl, existingFiles, currentFile ?? null);
@@ -57107,6 +57109,7 @@ Rules:
         }
       }
     });
+    console.log(`[AI Chat] Executed ${executedActions.length} actions`);
     return res.json({
       reply: aiResult.reply,
       actions: executedActions,
@@ -57114,7 +57117,7 @@ Rules:
     });
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : "Unknown error";
-    console.error("[AI Route Error]", errorMessage);
+    console.error("[AI Route Error]", errorMessage, err);
     return res.status(500).json({
       error: "AI request failed",
       details: errorMessage,
@@ -57178,6 +57181,7 @@ function inferLanguage(filename) {
 }
 async function callOpenAI(systemPrompt, message, imageUrl, existingFiles, currentFile) {
   try {
+    console.log(`[OpenAI] Calling ${OPENAI_BASE}/chat/completions with gpt-4o`);
     const response = await fetch(`${OPENAI_BASE}/chat/completions`, {
       method: "POST",
       headers: {
@@ -57201,36 +57205,33 @@ async function callOpenAI(systemPrompt, message, imageUrl, existingFiles, curren
         temperature: 0.7
       })
     });
+    console.log(`[OpenAI] Response status: ${response.status}`);
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      console.error("[OpenAI Error]", response.status, errorData);
+      console.error("[OpenAI Error]", response.status, JSON.stringify(errorData));
       return generateAgenticFallback(message, existingFiles, currentFile);
     }
     const data = await response.json();
     let raw = data.choices[0]?.message?.content ?? "{}";
+    console.log(`[OpenAI] Raw response (first 200 chars): ${raw.substring(0, 200)}`);
     raw = raw.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
     try {
       const parsed = JSON.parse(raw);
       if (!parsed.reply || typeof parsed.reply !== "string") {
-        console.warn("[AI Validation] Missing or invalid reply field");
+        console.warn("[AI Validation] Missing or invalid reply field", parsed);
         return generateAgenticFallback(message, existingFiles, currentFile);
       }
       if (!Array.isArray(parsed.actions)) {
-        console.warn("[AI Validation] Actions is not an array");
+        console.warn("[AI Validation] Actions is not an array, defaulting to []");
         parsed.actions = [];
       }
-      for (const action of parsed.actions) {
-        if (!action.type || !action.filename) {
-          console.warn("[AI Validation] Invalid action structure", action);
-          continue;
-        }
-      }
+      console.log(`[OpenAI] Valid response with ${parsed.actions.length} actions`);
       return {
         reply: String(parsed.reply),
         actions: Array.isArray(parsed.actions) ? parsed.actions : []
       };
     } catch (parseErr) {
-      console.error("[JSON Parse Error]", parseErr);
+      console.error("[JSON Parse Error]", parseErr, "Raw:", raw.substring(0, 500));
       return generateAgenticFallback(message, existingFiles, currentFile);
     }
   } catch (fetchErr) {
