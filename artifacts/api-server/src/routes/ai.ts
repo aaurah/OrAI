@@ -339,6 +339,7 @@ async function callOpenAI(
 
 /**
  * Smart offline fallback — handles common intents when AI is unavailable
+ * IMPORTANT: Only use simple, direct patterns to avoid matching legitimate requests
  */
 function generateAgenticFallback(
   message: string,
@@ -350,60 +351,69 @@ function generateAgenticFallback(
   // ── Greeting / health check
   if (
     /^(hi|hello|hey|yo|sup|howdy|hola|test|ping)[\s!?.,]*$/.test(msg) ||
-    /are you (working|there|alive|ok|online|ready)/.test(msg) ||
+    /^are you (working|there|alive|ok|online|ready)/.test(msg) ||
     msg === "test" || msg === "?" || /^how are you/.test(msg)
   ) {
     return {
-      reply: `✅ I'm working! I'm your AI coding assistant. I can create, edit, and delete files in your project. Try asking me to build a weather app, todo list, portfolio site, or anything else!`,
+      reply: `👋 I'm working! I can help you create, edit, and delete files. What would you like to build or change?`,
       actions: [],
     };
   }
 
   // ── Help / capabilities
-  if (/what can you (do|make|build|create)|help|capabilities|features/.test(msg)) {
+  if (/^(what can you|help|capabilities|features|what do you|how can you|can you)/i.test(msg)) {
     return {
-      reply: `I can create and edit full web projects! Try:\n• "Create a weather app"\n• "Build a todo list"\n• "Make a portfolio website"\n• "Create a landing page"\n• "Build a quiz app"\n\nWhat would you like to build?`,
+      reply: `🎯 I can create and edit web projects! Try:\n• "Create a weather app"\n• "Build a todo list"\n• "Make a portfolio"\n• "Create a calculator"\n\nOr describe exactly what you want!`,
       actions: [],
     };
   }
 
-  // ── Delete intent
-  if (
-    /\b(delete|remove)\b/.test(msg) &&
-    !/you (deleted|removed)|(was|got|been) (deleted|removed)|already deleted/.test(msg)
-  ) {
+  // ── Delete intent (be specific)
+  if (/^(delete|remove)\s+/i.test(msg)) {
     for (const f of existingFiles) {
       if (msg.includes(f.name.toLowerCase())) {
         return { 
-          reply: `Deleting ${f.name}.`, 
+          reply: `🗑️ Deleting ${f.name}.`, 
           actions: [{ type: "delete_file", filename: f.name }] 
         };
       }
     }
     return {
-      reply: `Which file would you like to delete? I can see: ${existingFiles.map(f => f.name).join(", ") || "no files yet"}.`,
+      reply: `Which file would you like to delete? Files: ${existingFiles.map(f => f.name).join(", ") || "none yet"}`,
       actions: [],
     };
   }
 
-  // ── Question / help request
-  if (/^(what|why|how|when|where|who|is|does|can|will|should|did)\b/.test(msg)) {
+  // ── Generic question that doesn't require action
+  if (/^(what|why|how|when|where|who|is|does|can|will|should|did|have you)\b/i.test(msg)) {
+    const fileInfo = existingFiles.length > 0 
+      ? `Your project has: ${existingFiles.map(f => f.name).join(", ")}. `
+      : "";
     return {
-      reply: `I can help! Your project has: ${existingFiles.map(f => f.name).join(", ") || "no files yet"}. What would you like me to do?`,
+      reply: `${fileInfo}Feel free to ask me anything or tell me what you'd like to build!`,
       actions: [],
     };
   }
 
-  // ── Generic fallback
+  // ── If user has existing files and asks for changes
+  if (existingFiles.length > 0 && /(change|update|edit|fix|improve|add|modify|redesign|update)/i.test(msg)) {
+    return {
+      reply: `📝 Sure! Your project has: ${existingFiles.map(f => f.name).join(", ")}. What exactly would you like me to change?`,
+      actions: [],
+    };
+  }
+
+  // ── Default: user has files but unclear request
   if (existingFiles.length > 0) {
     return {
-      reply: `Your project has: ${existingFiles.map(f => f.name).join(", ")}. What would you like me to change or add?`,
+      reply: `📂 Your project has: ${existingFiles.map(f => f.name).join(", ")}. What would you like me to do?`,
       actions: [],
     };
   }
 
+  // ── Default: no files yet
   return {
-    reply: `I can build web projects! Try: "Create a weather app", "Build a todo list", or "Make a portfolio website". What would you like to build?`,
+    reply: `✨ Let's create something! Try:\n• "Create a weather app"\n• "Build a todo list"\n• "Make a portfolio website"\n\nWhat would you like to build?`,
     actions: [],
   };
 }
