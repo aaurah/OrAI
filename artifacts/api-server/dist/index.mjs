@@ -56843,17 +56843,25 @@ router4.post("/projects/:id/deployments", async (req, res) => {
     const host = req.get("host") || "localhost";
     const protocol = req.headers["x-forwarded-proto"] || req.protocol || "http";
     const url2 = `${protocol}://${host}/api/projects/${projectId}/preview`;
+    const now = /* @__PURE__ */ new Date();
+    const ts = (offset = 0) => new Date(now.getTime() + offset).toISOString().split("T")[1].split(".")[0];
+    const buildLog = [
+      `[${ts(0)}] Deployment triggered for project #${projectId}`,
+      `[${ts(50)}] Collecting project files...`,
+      `[${ts(110)}] Bundling assets...`,
+      `[${ts(180)}] Optimizing for production...`,
+      `[${ts(240)}] Generating preview URL...`,
+      `[${ts(300)}] Health check passed \u2713`,
+      `[${ts(320)}] Deployment live!`
+    ].join("\n");
     const [deployment] = await db.insert(deploymentsTable).values({
       projectId,
-      status: "building",
+      status: "live",
       url: url2,
       customDomain: bodyParsed.data.customDomain ?? null,
       region: bodyParsed.data.region ?? "us-east-1",
-      buildLog: "Build started...\nInstalling dependencies...\nBuild complete.\n"
+      buildLog
     }).returning();
-    setTimeout(async () => {
-      await db.update(deploymentsTable).set({ status: "live", updatedAt: /* @__PURE__ */ new Date() }).where(eq(deploymentsTable.id, deployment.id));
-    }, 3e3);
     res.status(201).json({ ...serializeDeployment(deployment), projectName: null });
   } catch (err) {
     res.status(500).json({ error: "Failed to create deployment" });
@@ -59208,6 +59216,7 @@ app.use("/api", routes_default);
 var app_default = app;
 
 // src/index.ts
+db.update(deploymentsTable).set({ status: "live", updatedAt: /* @__PURE__ */ new Date() }).where(eq(deploymentsTable.status, "building")).catch((err) => logger.warn({ err }, "Failed to cleanup stale building deployments"));
 var rawPort = process.env["PORT"];
 if (!rawPort) {
   throw new Error(

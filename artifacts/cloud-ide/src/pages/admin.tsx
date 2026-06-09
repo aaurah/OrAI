@@ -331,7 +331,7 @@ export default function Admin() {
             <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
                 { icon: Database,  label: "DB Engine",    value: "PostgreSQL 16" },
-                { icon: Server,    label: "Runtime",      value: "Node.js 20" },
+                { icon: Server,    label: "Runtime",      value: "Node.js 24" },
                 { icon: Cpu,       label: "API Version",  value: "Express 5" },
                 { icon: GitBranch, label: "Environment",  value: "Development" },
               ].map(({ icon: Icon, label, value }) => (
