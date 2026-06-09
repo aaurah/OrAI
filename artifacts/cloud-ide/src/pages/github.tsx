@@ -576,8 +576,23 @@ export default function GitHubPage() {
       if (!tree?.tree) {
         throw new Error(tree?.message ?? "Failed to fetch repository file tree");
       }
+      const SKIP_NAMES = new Set([
+        ".replit", ".replitignore", "replit.nix",
+        "pnpm-lock.yaml", "yarn.lock", "package-lock.json",
+        ".npmrc", ".yarnrc", ".yarnrc.yml",
+        ".gitignore", ".gitattributes", ".editorconfig",
+        "Thumbs.db", ".DS_Store",
+      ]);
+      const SKIP_TOP_DIRS = new Set([".github", "node_modules", ".git", "dist", "build", ".next", "__pycache__"]);
+
       const blobs: any[] = tree.tree
-        .filter((f: any) => f.type === "blob" && f.path && !f.path.startsWith(".git"))
+        .filter((f: any) => {
+          if (f.type !== "blob" || !f.path) return false;
+          const parts = f.path.split("/");
+          const name = parts[parts.length - 1];
+          const topDir = parts[0];
+          return !SKIP_NAMES.has(name) && !SKIP_TOP_DIRS.has(topDir);
+        })
         .slice(0, 50);
 
       setImportProgress("Creating CloudIDE project…");
