@@ -1260,20 +1260,24 @@ export default function GitHubPage() {
           </div>
         )}
 
-        {/* Tab bar — sticky so it stays visible while scrolled */}
-        <div className="flex gap-0.5 overflow-x-auto border-b border-border pb-px sticky top-0 bg-background z-20 -mx-4 px-4 md:-mx-6 md:px-6">
-          {activeTabs.map(({ key, label, icon: Icon }) => (
-            <button
-              key={key}
-              onClick={() => setTab(key)}
-              className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium border-b-2 transition-colors whitespace-nowrap shrink-0 ${
-                tab === key ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground/40"
-              }`}
-            >
-              <Icon size={12} />
-              {label}
-            </button>
-          ))}
+        {/* Tab bar — outer div handles sticky, inner div handles horizontal scroll */}
+        <div className="sticky top-0 z-20 bg-background -mx-4 md:-mx-6 border-b border-border">
+          <div className="overflow-x-auto" style={{ WebkitOverflowScrolling: "touch" }}>
+            <div className="flex gap-0.5 px-4 md:px-6 min-w-max">
+              {activeTabs.map(({ key, label, icon: Icon }) => (
+                <button
+                  key={key}
+                  onClick={() => setTab(key)}
+                  className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium border-b-2 transition-colors whitespace-nowrap shrink-0 ${
+                    tab === key ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground/40"
+                  }`}
+                >
+                  <Icon size={12} />
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
         {/* Tab body */}
