@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { projectsTable, filesTable, deploymentsTable } from "@workspace/db";
-import { eq, desc, count, and } from "drizzle-orm";
+import { eq, desc, count, and, asc } from "drizzle-orm";
 import {
   CreateProjectBody,
   UpdateProjectBody,
@@ -158,7 +158,8 @@ router.get("/projects/:id/preview", async (req, res) => {
     const [indexFile] = await db
       .select()
       .from(filesTable)
-      .where(and(eq(filesTable.projectId, projectId), eq(filesTable.name, "index.html")));
+      .where(and(eq(filesTable.projectId, projectId), eq(filesTable.name, "index.html")))
+      .orderBy(desc(filesTable.id));
 
     if (!indexFile || !indexFile.content) {
       res
@@ -199,7 +200,8 @@ router.get("/projects/:id/preview/*filename", async (req, res) => {
     const [file] = await db
       .select()
       .from(filesTable)
-      .where(and(eq(filesTable.projectId, projectId), eq(filesTable.name, filename)));
+      .where(and(eq(filesTable.projectId, projectId), eq(filesTable.name, filename)))
+      .orderBy(desc(filesTable.id));
 
     if (!file) {
       res.status(404).send(`/* ${filename} not found */`);
