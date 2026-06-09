@@ -233,8 +233,21 @@ function generateAgenticFallback(
     };
   }
 
-  // ── Delete intent ──────────────────────────────────────────────────────────
-  if (/delete|remove/.test(msg)) {
+  // ── Complaint / past-tense accusation — NOT a command ─────────────────────
+  if (
+    /you (deleted|removed|broke|destroyed|ruined|erased|wiped|reset|cleared)|(my|the) (project|files|code|work|app) (is gone|got deleted|was deleted|disappeared|was removed|got removed)|(you|that) (messed|screwed) (up|it)|already (deleted|gone|missing)/.test(msg)
+  ) {
+    return {
+      reply: `Sorry to hear that! I can help you rebuild. Just describe what you had:\n• "Rebuild the weather app with 7-day forecast"\n• "Recreate the todo app"\n• "Start over with a portfolio site"\n\nTell me what to build and I'll create it right away!`,
+      actions: [],
+    };
+  }
+
+  // ── Delete intent (command only, not past-tense complaints) ───────────────
+  if (
+    /\bdelete\b|\bremove\b/.test(msg) &&
+    !/you (deleted|removed)|(was|got|been) (deleted|removed)|already deleted/.test(msg)
+  ) {
     for (const f of existingFiles) {
       if (msg.includes(f.name.toLowerCase())) {
         return { reply: `Deleting ${f.name}.`, actions: [{ type: "delete_file", filename: f.name }] };
@@ -1234,13 +1247,42 @@ document.getElementById("signup").addEventListener("submit",e=>{e.preventDefault
     };
   }
 
-  // ── Generic create intent OR file-name hint ────────────────────────────────
+  // ── Existing files: add-feature or smart default (BEFORE generic create) ───
+  if (existingFiles.length > 0) {
+    const fileNames = existingFiles.map(f => f.name).join(", ");
+    const hasHtml = existingFiles.some(f => f.name.endsWith(".html"));
+    const hasTs   = existingFiles.some(f => f.name.endsWith(".ts") || f.name.endsWith(".tsx"));
+    const hasPy   = existingFiles.some(f => f.name.endsWith(".py"));
+
+    // "add/make/give/include X" = add a feature to the existing project
+    if (/\b(add|give|include|attach|append|put)\b/.test(msg) ||
+        (/\bmake\b/.test(msg) && !/\b(make a|make an|make me a|make me an)\b/.test(msg))) {
+      return {
+        reply: `Got it — you want to add something to your project (**${fileNames}**). Tell me more specifically, for example:\n• "Add a dark mode toggle"\n• "Add location search to the weather app"\n• "Add a contact form"\n• "Add animations to the buttons"\n\nI'll edit the files directly!`,
+        actions: [],
+      };
+    }
+
+    if (!hasHtml && (hasTs || hasPy)) {
+      const lang = hasTs ? "TypeScript" : "Python";
+      return {
+        reply: `Your project has: **${fileNames}**\n\nThis looks like a **${lang}** project. It can't be previewed directly (no \`index.html\`), but I can:\n• **"Add a function that..."** — write new code\n• **"Create a REST API"** — build Express/Fastify endpoints\n• **"Create a web frontend"** — add HTML/CSS/JS so you can preview it\n• **"Fix the error in..."** — debug issues\n\nWhat would you like me to do?`,
+        actions: [],
+      };
+    }
+
+    return {
+      reply: `Your project has: **${fileNames}**\n\nHere's what I can do:\n• **"Redesign"** — improve the look and layout\n• **"Make it dark mode"** — switch to a dark theme\n• **"Add a contact form"** — add a new section\n• **"Change colors to blue"** — restyle with a different palette\n• **"Add animations"** — make it more dynamic\n\nOr describe exactly what you want changed!`,
+      actions: [],
+    };
+  }
+
+  // ── Generic create intent (only when project has no files yet) ─────────────
   const hasCreateVerb = /create|build|make|generate|write|new|start/.test(msg);
   const hasHtmlFile = /\.html/.test(msg);
   const hasWebHint = /website|site|app|page|web/.test(msg);
 
   if (hasCreateVerb || hasHtmlFile || hasWebHint) {
-    // Build a relevant starter based on any keywords found
     return {
       reply: "Created a starter HTML/CSS/JS project. Click **Preview** to see it live, then tell me what to change!",
       actions: [
@@ -1274,27 +1316,6 @@ button:hover { background: #4f46e5; }
   document.getElementById("msg").textContent = "It works! 🚀 Now describe what you want to build.";
 });` },
       ],
-    };
-  }
-
-  // ── Smart default ──────────────────────────────────────────────────────────
-  if (existingFiles.length > 0) {
-    const fileNames = existingFiles.map(f => f.name).join(", ");
-    const hasHtml = existingFiles.some(f => f.name.endsWith(".html"));
-    const hasTs   = existingFiles.some(f => f.name.endsWith(".ts") || f.name.endsWith(".tsx"));
-    const hasPy   = existingFiles.some(f => f.name.endsWith(".py"));
-
-    if (!hasHtml && (hasTs || hasPy)) {
-      const lang = hasTs ? "TypeScript" : "Python";
-      return {
-        reply: `Your project has: **${fileNames}**\n\nThis looks like a **${lang}** project. It can't be previewed directly (no \`index.html\`), but I can:\n• **"Add a function that..."** — write new code\n• **"Create a REST API"** — build Express/Fastify endpoints\n• **"Create a web frontend"** — add HTML/CSS/JS so you can preview it\n• **"Fix the error in..."** — debug issues\n• **"Convert this to a web app"** — wrap in a browser-friendly UI\n\nWhat would you like me to do?`,
-        actions: [],
-      };
-    }
-
-    return {
-      reply: `Your project has: **${fileNames}**\n\nHere's what I can do:\n• **"Redesign"** — improve the look and layout\n• **"Make it dark mode"** — switch to a dark theme\n• **"Add a contact form"** — add a new section\n• **"Change colors to blue"** — restyle with a different palette\n• **"Add animations"** — make it feel more dynamic\n\nOr describe exactly what you want changed!`,
-      actions: [],
     };
   }
 

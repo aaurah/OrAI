@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useParams, Link } from "wouter";
+import { useParams, Link, useLocation } from "wouter";
 import {
   File as FileIcon, Folder, Plus, Trash2,
   Save, Rocket, X, SendHorizontal,
@@ -14,6 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Sidebar } from "@/components/layout";
 import {
   useGetProject,
+  useListProjects,
   useListFiles,
   useGetFile,
   useCreateFile,
@@ -159,7 +160,9 @@ export default function IDE() {
   const projectId = Number(params.id);
   const queryClient = useQueryClient();
 
+  const [, navigate] = useLocation();
   const { data: project } = useGetProject(projectId);
+  const { data: allProjects } = useListProjects();
   const { data: files, isLoading: filesLoading } = useListFiles(projectId);
 
   const [selectedFileId, setSelectedFileId] = useState<number | null>(null);
@@ -640,7 +643,23 @@ export default function IDE() {
             </Button>
           </Link>
           <span className="text-muted-foreground text-xs hidden sm:inline">/</span>
-          <span className="text-sm font-medium truncate max-w-[120px] sm:max-w-none">{project?.name ?? "Loading…"}</span>
+          <Select
+            value={String(projectId)}
+            onValueChange={(val) => {
+              if (Number(val) !== projectId) navigate(`/ide/${val}`);
+            }}
+          >
+            <SelectTrigger className="h-7 text-sm font-medium border-0 bg-transparent shadow-none px-1.5 max-w-[150px] sm:max-w-[220px] focus:ring-0 focus:ring-offset-0">
+              <SelectValue placeholder={project?.name ?? "Loading…"} />
+            </SelectTrigger>
+            <SelectContent>
+              {allProjects?.map(p => (
+                <SelectItem key={p.id} value={String(p.id)}>
+                  {p.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           {isDirty && <Badge variant="secondary" className="text-xs h-5 px-1.5 shrink-0">unsaved</Badge>}
           <div className="ml-auto flex items-center gap-1.5">
             <Button variant="ghost" size="sm" className="h-7 px-2 text-xs gap-1" onClick={handleSave} disabled={!isDirty || updateFile.isPending}>

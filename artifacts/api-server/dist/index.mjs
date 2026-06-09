@@ -57005,7 +57005,18 @@ Just describe what you want and I'll build it!`,
       actions: []
     };
   }
-  if (/delete|remove/.test(msg)) {
+  if (/you (deleted|removed|broke|destroyed|ruined|erased|wiped|reset|cleared)|(my|the) (project|files|code|work|app) (is gone|got deleted|was deleted|disappeared|was removed|got removed)|(you|that) (messed|screwed) (up|it)|already (deleted|gone|missing)/.test(msg)) {
+    return {
+      reply: `Sorry to hear that! I can help you rebuild. Just describe what you had:
+\u2022 "Rebuild the weather app with 7-day forecast"
+\u2022 "Recreate the todo app"
+\u2022 "Start over with a portfolio site"
+
+Tell me what to build and I'll create it right away!`,
+      actions: []
+    };
+  }
+  if (/\bdelete\b|\bremove\b/.test(msg) && !/you (deleted|removed)|(was|got|been) (deleted|removed)|already deleted/.test(msg)) {
     for (const f of existingFiles) {
       if (msg.includes(f.name.toLowerCase())) {
         return { reply: `Deleting ${f.name}.`, actions: [{ type: "delete_file", filename: f.name }] };
@@ -57996,6 +58007,52 @@ document.getElementById("signup").addEventListener("submit",e=>{e.preventDefault
       actions: []
     };
   }
+  if (existingFiles.length > 0) {
+    const fileNames = existingFiles.map((f) => f.name).join(", ");
+    const hasHtml = existingFiles.some((f) => f.name.endsWith(".html"));
+    const hasTs = existingFiles.some((f) => f.name.endsWith(".ts") || f.name.endsWith(".tsx"));
+    const hasPy = existingFiles.some((f) => f.name.endsWith(".py"));
+    if (/\b(add|give|include|attach|append|put)\b/.test(msg) || /\bmake\b/.test(msg) && !/\b(make a|make an|make me a|make me an)\b/.test(msg)) {
+      return {
+        reply: `Got it \u2014 you want to add something to your project (**${fileNames}**). Tell me more specifically, for example:
+\u2022 "Add a dark mode toggle"
+\u2022 "Add location search to the weather app"
+\u2022 "Add a contact form"
+\u2022 "Add animations to the buttons"
+
+I'll edit the files directly!`,
+        actions: []
+      };
+    }
+    if (!hasHtml && (hasTs || hasPy)) {
+      const lang = hasTs ? "TypeScript" : "Python";
+      return {
+        reply: `Your project has: **${fileNames}**
+
+This looks like a **${lang}** project. It can't be previewed directly (no \`index.html\`), but I can:
+\u2022 **"Add a function that..."** \u2014 write new code
+\u2022 **"Create a REST API"** \u2014 build Express/Fastify endpoints
+\u2022 **"Create a web frontend"** \u2014 add HTML/CSS/JS so you can preview it
+\u2022 **"Fix the error in..."** \u2014 debug issues
+
+What would you like me to do?`,
+        actions: []
+      };
+    }
+    return {
+      reply: `Your project has: **${fileNames}**
+
+Here's what I can do:
+\u2022 **"Redesign"** \u2014 improve the look and layout
+\u2022 **"Make it dark mode"** \u2014 switch to a dark theme
+\u2022 **"Add a contact form"** \u2014 add a new section
+\u2022 **"Change colors to blue"** \u2014 restyle with a different palette
+\u2022 **"Add animations"** \u2014 make it more dynamic
+
+Or describe exactly what you want changed!`,
+      actions: []
+    };
+  }
   const hasCreateVerb = /create|build|make|generate|write|new|start/.test(msg);
   const hasHtmlFile = /\.html/.test(msg);
   const hasWebHint = /website|site|app|page|web/.test(msg);
@@ -58033,41 +58090,6 @@ button:hover { background: #4f46e5; }
   document.getElementById("msg").textContent = "It works! \u{1F680} Now describe what you want to build.";
 });` }
       ]
-    };
-  }
-  if (existingFiles.length > 0) {
-    const fileNames = existingFiles.map((f) => f.name).join(", ");
-    const hasHtml = existingFiles.some((f) => f.name.endsWith(".html"));
-    const hasTs = existingFiles.some((f) => f.name.endsWith(".ts") || f.name.endsWith(".tsx"));
-    const hasPy = existingFiles.some((f) => f.name.endsWith(".py"));
-    if (!hasHtml && (hasTs || hasPy)) {
-      const lang = hasTs ? "TypeScript" : "Python";
-      return {
-        reply: `Your project has: **${fileNames}**
-
-This looks like a **${lang}** project. It can't be previewed directly (no \`index.html\`), but I can:
-\u2022 **"Add a function that..."** \u2014 write new code
-\u2022 **"Create a REST API"** \u2014 build Express/Fastify endpoints
-\u2022 **"Create a web frontend"** \u2014 add HTML/CSS/JS so you can preview it
-\u2022 **"Fix the error in..."** \u2014 debug issues
-\u2022 **"Convert this to a web app"** \u2014 wrap in a browser-friendly UI
-
-What would you like me to do?`,
-        actions: []
-      };
-    }
-    return {
-      reply: `Your project has: **${fileNames}**
-
-Here's what I can do:
-\u2022 **"Redesign"** \u2014 improve the look and layout
-\u2022 **"Make it dark mode"** \u2014 switch to a dark theme
-\u2022 **"Add a contact form"** \u2014 add a new section
-\u2022 **"Change colors to blue"** \u2014 restyle with a different palette
-\u2022 **"Add animations"** \u2014 make it feel more dynamic
-
-Or describe exactly what you want changed!`,
-      actions: []
     };
   }
   return {
