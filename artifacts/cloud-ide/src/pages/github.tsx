@@ -1260,13 +1260,13 @@ export default function GitHubPage() {
           </div>
         )}
 
-        {/* Tab bar */}
-        <div className="flex gap-0.5 overflow-x-auto border-b border-border pb-px">
+        {/* Tab bar — sticky so it stays visible while scrolled */}
+        <div className="flex gap-0.5 overflow-x-auto border-b border-border pb-px sticky top-0 bg-background z-20 -mx-4 px-4 md:-mx-6 md:px-6">
           {activeTabs.map(({ key, label, icon: Icon }) => (
             <button
               key={key}
               onClick={() => setTab(key)}
-              className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 transition-colors whitespace-nowrap shrink-0 ${
+              className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium border-b-2 transition-colors whitespace-nowrap shrink-0 ${
                 tab === key ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground/40"
               }`}
             >
@@ -1277,7 +1277,7 @@ export default function GitHubPage() {
         </div>
 
         {/* Tab body */}
-        <div className="min-h-[400px]">
+        <div key={tab} className="min-h-[400px] animate-in fade-in duration-150">
           {renderTabContent()}
         </div>
       </div>
