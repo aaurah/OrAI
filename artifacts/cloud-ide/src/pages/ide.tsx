@@ -141,7 +141,7 @@ function FileTree({
             : <FileIcon size={13} className="shrink-0" />}
           <span className="flex-1 truncate font-mono text-xs">{f.name}</span>
           <button
-            className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity p-0.5"
+            className="opacity-100 md:opacity-0 md:group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity p-0.5"
             onClick={(e) => { e.stopPropagation(); onDelete(f.id); }}
           >
             <Trash2 size={11} />
