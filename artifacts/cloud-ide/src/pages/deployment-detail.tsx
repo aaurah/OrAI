@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useParams } from "wouter";
-import { ArrowLeft, Globe, Plus, Trash2, Edit2, ExternalLink, Check, X } from "lucide-react";
+import { ArrowLeft, Globe, Plus, Trash2, Edit2, ExternalLink, Check, X, Monitor } from "lucide-react";
 import { Link } from "wouter";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/hooks/use-toast";
 import {
   useGetDeployment,
   useUpdateDeployment,
@@ -37,6 +38,7 @@ export default function DeploymentDetail() {
   const id = Number(params.id);
   const queryClient = useQueryClient();
 
+  const { toast } = useToast();
   const { data: deployment, isLoading: deployLoading } = useGetDeployment(id);
   const { data: dnsRecords, isLoading: dnsLoading } = useListDnsRecords(id);
   const updateDeploy = useUpdateDeployment();
@@ -59,6 +61,11 @@ export default function DeploymentDetail() {
         queryClient.invalidateQueries({ queryKey: getGetDeploymentQueryKey(id) });
         setDomainSaved(true);
         setTimeout(() => setDomainSaved(false), 2000);
+        toast({ title: "Domain saved", description: `Custom domain set to ${customDomain.trim()}` });
+        setCustomDomain("");
+      },
+      onError: () => {
+        toast({ title: "Failed to save domain", variant: "destructive" });
       },
     });
   }
@@ -79,6 +86,10 @@ export default function DeploymentDetail() {
         queryClient.invalidateQueries({ queryKey: getListDnsRecordsQueryKey(id) });
         setNewRecord({ type: "A", name: "", value: "", ttl: 3600, priority: "" });
         setShowAddRecord(false);
+        toast({ title: "DNS record added" });
+      },
+      onError: () => {
+        toast({ title: "Failed to add DNS record", variant: "destructive" });
       },
     });
   }
@@ -103,13 +114,23 @@ export default function DeploymentDetail() {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getListDnsRecordsQueryKey(id) });
         setEditingRecord(null);
+        toast({ title: "DNS record updated" });
+      },
+      onError: () => {
+        toast({ title: "Failed to update DNS record", variant: "destructive" });
       },
     });
   }
 
   function handleDeleteDns(recordId: number) {
     deleteDns.mutate({ id, recordId }, {
-      onSuccess: () => queryClient.invalidateQueries({ queryKey: getListDnsRecordsQueryKey(id) }),
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListDnsRecordsQueryKey(id) });
+        toast({ title: "DNS record deleted" });
+      },
+      onError: () => {
+        toast({ title: "Failed to delete DNS record", variant: "destructive" });
+      },
     });
   }
 
@@ -152,7 +173,25 @@ export default function DeploymentDetail() {
         </div>
 
         <Card className="bg-card border-border">
-          <CardHeader><CardTitle className="text-base">Deployment Info</CardTitle></CardHeader>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base">Deployment Info</CardTitle>
+              {deployment.projectId && (
+                <div className="flex gap-2">
+                  <a href={`/api/projects/${deployment.projectId}/preview`} target="_blank" rel="noopener noreferrer">
+                    <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5">
+                      <Monitor size={12} /> Live Preview
+                    </Button>
+                  </a>
+                  <Link href={`/projects/${deployment.projectId}`}>
+                    <Button size="sm" variant="ghost" className="h-7 text-xs gap-1.5">
+                      Open in IDE
+                    </Button>
+                  </Link>
+                </div>
+              )}
+            </div>
+          </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex flex-wrap gap-4 text-sm">
               <div>
@@ -166,10 +205,10 @@ export default function DeploymentDetail() {
                 <span className="font-mono text-sm">{deployment.region ?? "us-east-1"}</span>
               </div>
               {deployment.url && (
-                <div>
-                  <span className="text-muted-foreground block text-xs mb-1">URL</span>
-                  <a href={deployment.url} target="_blank" rel="noopener noreferrer" className="text-primary flex items-center gap-1 hover:underline text-sm font-mono">
-                    {deployment.url} <ExternalLink size={12} />
+                <div className="flex-1 min-w-0">
+                  <span className="text-muted-foreground block text-xs mb-1">Preview URL</span>
+                  <a href={deployment.url} target="_blank" rel="noopener noreferrer" className="text-primary flex items-center gap-1 hover:underline text-sm font-mono truncate">
+                    {deployment.url} <ExternalLink size={12} className="shrink-0" />
                   </a>
                 </div>
               )}

@@ -56679,10 +56679,12 @@ router4.post("/projects/:id/deployments", async (req, res) => {
   const bodyParsed = CreateDeploymentBody.safeParse(req.body);
   if (!bodyParsed.success) return res.status(400).json({ error: bodyParsed.error.message });
   try {
-    const subdomain = `project-${paramsParsed.data.id}-${Date.now()}`;
-    const url2 = `https://${subdomain}.deployments.example.com`;
+    const projectId = paramsParsed.data.id;
+    const host = req.get("host") || "localhost";
+    const protocol = req.headers["x-forwarded-proto"] || req.protocol || "http";
+    const url2 = `${protocol}://${host}/api/projects/${projectId}/preview`;
     const [deployment] = await db.insert(deploymentsTable).values({
-      projectId: paramsParsed.data.id,
+      projectId,
       status: "building",
       url: url2,
       customDomain: bodyParsed.data.customDomain ?? null,

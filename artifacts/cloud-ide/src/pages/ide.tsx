@@ -175,6 +175,8 @@ export default function IDE() {
   const [newFileName, setNewFileName]       = useState("");
   const [newFileType, setNewFileType]       = useState<"file" | "directory">("file");
   const [showDeploy, setShowDeploy]         = useState(false);
+  const [deployedUrl, setDeployedUrl]       = useState<string | null>(null);
+  const [deployedId, setDeployedId]         = useState<number | null>(null);
   const CHAT_KEY = `ide_chat_${projectId}`;
   const [aiMessages, setAiMessages]         = useState<AiMessage[]>(() => {
     try {
@@ -268,10 +270,13 @@ export default function IDE() {
   }
 
   function handleDeploy() {
+    setDeployedUrl(null);
+    setDeployedId(null);
     createDeployment.mutate({ id: projectId, data: {} }, {
-      onSuccess: () => {
+      onSuccess: (deployment) => {
         queryClient.invalidateQueries({ queryKey: getListDeploymentsQueryKey(projectId) });
-        setShowDeploy(false);
+        setDeployedUrl((deployment as any).url ?? null);
+        setDeployedId((deployment as any).id ?? null);
       },
     });
   }
@@ -760,25 +765,64 @@ export default function IDE() {
       </Dialog>
 
       {/* Deploy dialog */}
-      <Dialog open={showDeploy} onOpenChange={setShowDeploy}>
+      <Dialog open={showDeploy} onOpenChange={(open) => { setShowDeploy(open); if (!open) { setDeployedUrl(null); setDeployedId(null); } }}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Deploy Project</DialogTitle></DialogHeader>
-          <div className="py-4 space-y-3">
-            <p className="text-sm text-muted-foreground">
-              Deploy <strong>{project?.name}</strong> to a live URL. Your project will be built and hosted instantly.
-            </p>
-            <div className="bg-muted/30 rounded-lg p-4 text-sm space-y-1">
-              <div className="flex justify-between text-xs"><span className="text-muted-foreground">Region</span><span>us-east-1</span></div>
-              <div className="flex justify-between text-xs"><span className="text-muted-foreground">Domain</span><span className="font-mono">auto-assigned</span></div>
+          <DialogHeader>
+            <DialogTitle>{deployedUrl ? "Deployment Live 🚀" : "Deploy Project"}</DialogTitle>
+          </DialogHeader>
+          {deployedUrl ? (
+            <div className="py-4 space-y-4">
+              <div className="flex items-center gap-2 text-sm text-green-400 bg-green-500/10 border border-green-500/20 rounded-lg px-4 py-3">
+                <Rocket size={16} className="shrink-0" />
+                <span>Your project is live!</span>
+              </div>
+              <div className="bg-muted/30 rounded-lg p-4 space-y-3">
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Live Preview URL</p>
+                  <a
+                    href={deployedUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:underline text-sm font-mono flex items-center gap-1 break-all"
+                  >
+                    {deployedUrl} <ExternalLink size={12} className="shrink-0" />
+                  </a>
+                </div>
+              </div>
+              <DialogFooter className="flex-col sm:flex-row gap-2">
+                <Button variant="outline" onClick={() => { setShowDeploy(false); setDeployedUrl(null); setDeployedId(null); }}>Close</Button>
+                {deployedId && (
+                  <Link href={`/deployments/${deployedId}`}>
+                    <Button variant="secondary" onClick={() => { setShowDeploy(false); setDeployedUrl(null); setDeployedId(null); }}>
+                      Manage Deployment
+                    </Button>
+                  </Link>
+                )}
+                <Button onClick={() => window.open(deployedUrl, "_blank")} className="gap-2">
+                  <ExternalLink size={14} /> Open Preview
+                </Button>
+              </DialogFooter>
             </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDeploy(false)}>Cancel</Button>
-            <Button onClick={handleDeploy} disabled={createDeployment.isPending} className="gap-2">
-              {createDeployment.isPending ? <Loader2 size={14} className="animate-spin" /> : <Rocket size={14} />}
-              {createDeployment.isPending ? "Deploying…" : "Deploy"}
-            </Button>
-          </DialogFooter>
+          ) : (
+            <>
+              <div className="py-4 space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  Deploy <strong>{project?.name}</strong> to a live URL. Your project will be built and hosted instantly.
+                </p>
+                <div className="bg-muted/30 rounded-lg p-4 text-sm space-y-1">
+                  <div className="flex justify-between text-xs"><span className="text-muted-foreground">Region</span><span>us-east-1</span></div>
+                  <div className="flex justify-between text-xs"><span className="text-muted-foreground">Domain</span><span className="font-mono">auto-assigned</span></div>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowDeploy(false)}>Cancel</Button>
+                <Button onClick={handleDeploy} disabled={createDeployment.isPending} className="gap-2">
+                  {createDeployment.isPending ? <Loader2 size={14} className="animate-spin" /> : <Rocket size={14} />}
+                  {createDeployment.isPending ? "Deploying…" : "Deploy"}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </div>
