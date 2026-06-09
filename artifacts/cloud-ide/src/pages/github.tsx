@@ -9,7 +9,9 @@ import {
   ArrowUpFromLine, RefreshCw, ChevronRight, ChevronDown, X,
   Loader2, CheckCircle2, XCircle, MessageSquare, Tag, Zap,
   FileText, User, Bell, BookMarked, Upload, ExternalLink,
+  Pencil, Settings2, FolderDown, Save, GitMerge, CheckCheck,
 } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -137,6 +139,8 @@ export default function GitHubPage() {
   const [showCreatePR, setShowCreatePR]       = useState(false);
   const [showCreateRelease, setShowCreateRelease] = useState(false);
   const [showPushProject, setShowPushProject] = useState(false);
+  const [showEditRepo, setShowEditRepo]       = useState(false);
+  const [showImportRepo, setShowImportRepo]   = useState(false);
   const [selectedIssue, setSelectedIssue]     = useState<GhIssue | null>(null);
   const [selectedPR, setSelectedPR]           = useState<GhPR | null>(null);
   const [issueComments, setIssueComments]     = useState<any[]>([]);
@@ -151,6 +155,27 @@ export default function GitHubPage() {
   const [newRelease, setNewRelease] = useState({ tag_name: "", name: "", body: "", draft: false, prerelease: false });
   const [pushMsg, setPushMsg] = useState("Push from CloudIDE");
   const [pushBranch, setPushBranch] = useState("main");
+
+  // Edit repo form
+  const [editRepoForm, setEditRepoForm] = useState({ name: "", description: "", private: false, homepage: "" });
+
+  // Inline file editing
+  const [fileEditMode, setFileEditMode]       = useState(false);
+  const [fileEditContent, setFileEditContent] = useState("");
+  const [fileEditMsg, setFileEditMsg]         = useState("");
+  const [fileSha, setFileSha]                 = useState("");
+  const [fileEditSaving, setFileEditSaving]   = useState(false);
+
+  // Import to CloudIDE
+  const [importProjectName, setImportProjectName] = useState("");
+  const [importLoading, setImportLoading]         = useState(false);
+  const [importProgress, setImportProgress]       = useState("");
+
+  // Push project
+  const [localProjects, setLocalProjects]   = useState<any[]>([]);
+  const [pushProjectId, setPushProjectId]   = useState<number | null>(null);
+  const [pushLoading, setPushLoading]       = useState(false);
+  const [pushResults, setPushResults]       = useState<Array<{ name: string; status: string; error?: string }> | null>(null);
 
   // ── Auth ───────────────────────────────────────────────────────────────────
 
@@ -449,6 +474,182 @@ export default function GitHubPage() {
     setRepos(rs => rs.map(r => r.id === repo.id ? { ...r, stargazers_count: r.stargazers_count + (star ? 1 : -1) } : r));
   }
 
+  // ── Edit Repo ──────────────────────────────────────────────────────────────
+
+  function openEditRepo() {
+    if (!selectedRepo) return;
+    setEditRepoForm({
+      name: selectedRepo.name,
+      description: selectedRepo.description ?? "",
+      private: selectedRepo.private,
+      homepage: "",
+    });
+    setShowEditRepo(true);
+  }
+
+  async function updateRepo() {
+    if (!selectedRepo) return;
+    const d = await ghApi(`${API}/repos/${selectedRepo.owner.login}/${selectedRepo.name}`, {
+      method: "PATCH",
+      body: JSON.stringify(editRepoForm),
+    });
+    if (d?.id) {
+      const updated = { ...selectedRepo, name: d.name, description: d.description, private: d.private, full_name: d.full_name };
+      setSelectedRepo(updated);
+      setRepos(rs => rs.map(r => r.id === d.id ? updated : r));
+      setShowEditRepo(false);
+      toast({ title: "Repository updated" });
+    } else {
+      toast({ title: d?.message ?? "Update failed", variant: "destructive" });
+    }
+  }
+
+  // ── Inline file editing ────────────────────────────────────────────────────
+
+  async function enterFileEditMode() {
+    if (fileContent === null || !selectedRepo) return;
+    const path = filePath.join("/");
+    const d = await ghApi(`${API}/repos/${selectedRepo.owner.login}/${selectedRepo.name}/contents/${path}`);
+    setFileSha(d?.sha ?? "");
+    setFileEditContent(fileContent);
+    setFileEditMsg(`Update ${filePath[filePath.length - 1] ?? "file"}`);
+    setFileEditMode(true);
+  }
+
+  async function commitFile() {
+    if (!selectedRepo) return;
+    const path = filePath.join("/");
+    setFileEditSaving(true);
+    try {
+      const encoded = btoa(unescape(encodeURIComponent(fileEditContent)));
+      const payload: any = {
+        message: fileEditMsg || `Update ${filePath[filePath.length - 1]}`,
+        content: encoded,
+        branch: selectedRepo.default_branch,
+      };
+      if (fileSha) payload.sha = fileSha;
+      const d = await ghApi(`${API}/repos/${selectedRepo.owner.login}/${selectedRepo.name}/contents/${path}`, {
+        method: "PUT",
+        body: JSON.stringify(payload),
+      });
+      if (d?.content) {
+        setFileContent(fileEditContent);
+        setFileSha(d.content.sha);
+        setFileEditMode(false);
+        toast({ title: "File committed ✓" });
+      } else {
+        toast({ title: d?.message ?? "Commit failed", variant: "destructive" });
+      }
+    } finally {
+      setFileEditSaving(false);
+    }
+  }
+
+  // ── Import repo to CloudIDE project ───────────────────────────────────────
+
+  function openImportRepo() {
+    if (!selectedRepo) return;
+    setImportProjectName(selectedRepo.name);
+    setImportProgress("");
+    setShowImportRepo(true);
+  }
+
+  async function importToCloudIDE() {
+    if (!selectedRepo || !importProjectName.trim()) return;
+    setImportLoading(true);
+    try {
+      setImportProgress("Fetching file tree from GitHub…");
+      const tree = await ghApi(`${API}/repos/${selectedRepo.owner.login}/${selectedRepo.name}/git/trees/HEAD?recursive=1`);
+      const blobs: any[] = (tree?.tree ?? [])
+        .filter((f: any) => f.type === "blob" && f.path && !f.path.startsWith(".git"))
+        .slice(0, 50);
+
+      setImportProgress("Creating CloudIDE project…");
+      const projRes = await fetch("/api/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: importProjectName.trim(),
+          description: selectedRepo.description || `Imported from ${selectedRepo.full_name}`,
+          language: (selectedRepo.language ?? "html").toLowerCase() || "html",
+          template: "blank",
+          isPublic: !selectedRepo.private,
+        }),
+      });
+      const proj = await projRes.json();
+      if (!proj?.id) throw new Error("Project creation failed");
+
+      for (let i = 0; i < blobs.length; i++) {
+        const file = blobs[i];
+        setImportProgress(`Importing file ${i + 1}/${blobs.length}: ${file.path}`);
+        try {
+          const contentRes = await ghApi(`${API}/repos/${selectedRepo.owner.login}/${selectedRepo.name}/contents/${file.path}`);
+          if (contentRes?.content) {
+            const decoded = atob(contentRes.content.replace(/\s/g, ""));
+            await fetch(`/api/projects/${proj.id}/files`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                name: file.path.split("/").pop() ?? file.path,
+                path: `/${file.path}`,
+                type: "file",
+                content: decoded,
+              }),
+            });
+          }
+        } catch { /* skip binary / unreadable files */ }
+      }
+
+      setImportLoading(false);
+      setShowImportRepo(false);
+      toast({ title: `Imported ${blobs.length} files into "${importProjectName}"` });
+      window.location.href = `/projects/${proj.id}`;
+    } catch (e: any) {
+      setImportLoading(false);
+      setImportProgress("");
+      toast({ title: e.message ?? "Import failed", variant: "destructive" });
+    }
+  }
+
+  // ── Push CloudIDE project → GitHub ─────────────────────────────────────────
+
+  async function openPushProject() {
+    setPushResults(null);
+    setPushProjectId(null);
+    const data = await fetch("/api/projects").then(r => r.json()).catch(() => []);
+    if (Array.isArray(data)) setLocalProjects(data);
+    setShowPushProject(true);
+  }
+
+  async function doPushProject() {
+    if (!selectedRepo || !pushProjectId) return;
+    setPushLoading(true);
+    setPushResults(null);
+    try {
+      const files = await fetch(`/api/projects/${pushProjectId}/files`).then(r => r.json());
+      if (!Array.isArray(files)) throw new Error("Failed to load project files");
+      const d = await ghApi(`${API}/repos/${selectedRepo.owner.login}/${selectedRepo.name}/push-project`, {
+        method: "POST",
+        body: JSON.stringify({
+          files: files.filter((f: any) => f.type === "file").map((f: any) => ({ name: f.name, content: f.content ?? "" })),
+          branch: pushBranch,
+          commitMessage: pushMsg,
+        }),
+      });
+      if (d?.results) {
+        setPushResults(d.results);
+        const ok = d.results.filter((r: any) => r.status !== "error").length;
+        toast({ title: `Pushed ${ok}/${d.results.length} files to ${selectedRepo.name}` });
+      } else {
+        toast({ title: d?.message ?? "Push failed", variant: "destructive" });
+      }
+    } catch (e: any) {
+      toast({ title: e.message ?? "Push failed", variant: "destructive" });
+    } finally {
+      setPushLoading(false);
+    }
+  }
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   if (!connected) {
@@ -590,35 +791,82 @@ export default function GitHubPage() {
     // ── Files ──────────────────────────────────────────────────────────────
     if (tab === "files" && selectedRepo) return (
       <div className="space-y-3">
+        {/* Breadcrumb */}
         <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
-          <button onClick={() => { setFilePath([]); setFileContent(null); setTimeout(loadTab, 0); }} className="hover:text-foreground font-medium">{selectedRepo.name}</button>
+          <button onClick={() => { setFilePath([]); setFileContent(null); setFileEditMode(false); setTimeout(loadTab, 0); }} className="hover:text-foreground font-medium">{selectedRepo.name}</button>
           {filePath.map((p, i) => (
-            <>
-              <ChevronRight size={12} key={`sep-${i}`} />
-              <button key={p} onClick={() => { setFilePath(fp => fp.slice(0, i + 1)); setFileContent(null); setTimeout(loadTab, 0); }} className="hover:text-foreground">{p}</button>
-            </>
+            <span key={`bc-${i}`} className="flex items-center gap-2">
+              <ChevronRight size={12} />
+              <button onClick={() => { setFilePath(fp => fp.slice(0, i + 1)); setFileContent(null); setFileEditMode(false); setTimeout(loadTab, 0); }} className="hover:text-foreground">{p}</button>
+            </span>
           ))}
         </div>
+
+        {/* File viewer / editor */}
         {fileContent !== null ? (
           <div className="rounded-lg border border-border overflow-hidden">
-            <div className="flex items-center justify-between px-3 py-2 bg-muted/50 border-b border-border">
-              <span className="text-xs font-mono text-muted-foreground">{filePath[filePath.length - 1]}</span>
-              <button onClick={() => { setFileContent(null); setFilePath(fp => fp.slice(0, -1)); setTimeout(loadTab, 0); }} className="text-muted-foreground hover:text-foreground"><X size={13} /></button>
+            <div className="flex items-center justify-between px-3 py-2 bg-muted/50 border-b border-border gap-2">
+              <span className="text-xs font-mono text-muted-foreground truncate">{filePath[filePath.length - 1]}</span>
+              <div className="flex items-center gap-1.5 shrink-0">
+                {!fileEditMode ? (
+                  <Button size="sm" variant="outline" className="h-6 text-[11px] gap-1 px-2" onClick={enterFileEditMode}>
+                    <Pencil size={10} /> Edit
+                  </Button>
+                ) : (
+                  <Button size="sm" variant="outline" className="h-6 text-[11px] px-2" onClick={() => setFileEditMode(false)}>
+                    Cancel
+                  </Button>
+                )}
+                <button onClick={() => { setFileContent(null); setFilePath(fp => fp.slice(0, -1)); setFileEditMode(false); setTimeout(loadTab, 0); }} className="text-muted-foreground hover:text-foreground">
+                  <X size={13} />
+                </button>
+              </div>
             </div>
-            <pre className="p-4 text-xs font-mono overflow-auto max-h-[60vh] ide-scroll text-foreground whitespace-pre-wrap break-words">{fileContent}</pre>
+
+            {fileEditMode ? (
+              <div className="space-y-0">
+                <Textarea
+                  className="font-mono text-xs rounded-none border-0 border-b border-border focus-visible:ring-0 min-h-[55vh] resize-y"
+                  value={fileEditContent}
+                  onChange={e => setFileEditContent(e.target.value)}
+                  spellCheck={false}
+                />
+                <div className="flex items-center gap-2 p-2 bg-muted/30">
+                  <Input
+                    className="h-7 text-xs flex-1 bg-background"
+                    placeholder="Commit message…"
+                    value={fileEditMsg}
+                    onChange={e => setFileEditMsg(e.target.value)}
+                  />
+                  <Button
+                    size="sm"
+                    className="h-7 text-xs gap-1.5 shrink-0"
+                    onClick={commitFile}
+                    disabled={fileEditSaving}
+                  >
+                    {fileEditSaving ? <Loader2 size={11} className="animate-spin" /> : <Save size={11} />}
+                    Commit
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <pre className="p-4 text-xs font-mono overflow-auto max-h-[60vh] ide-scroll text-foreground whitespace-pre-wrap break-words">{fileContent}</pre>
+            )}
           </div>
         ) : (
           <div className="rounded-lg border border-border overflow-hidden">
-            <div className="px-3 py-2 bg-muted/30 border-b border-border text-xs text-muted-foreground">
-              Branch: {selectedRepo.default_branch}
+            <div className="px-3 py-2 bg-muted/30 border-b border-border flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">Branch: <span className="font-mono">{selectedRepo.default_branch}</span></span>
+              <span className="text-xs text-muted-foreground">{files.length} items</span>
             </div>
             {files.length === 0 ? <p className="p-4 text-sm text-muted-foreground">Empty directory</p> : (
               <div className="divide-y divide-border">
                 {files.sort((a, b) => (a.type === "dir" ? -1 : 1) - (b.type === "dir" ? -1 : 1)).map(f => (
-                  <button key={f.path} onClick={() => browseFile(f)} className="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-muted/40 text-sm text-left">
+                  <button key={f.path} onClick={() => browseFile(f)} className="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-muted/40 text-sm text-left group">
                     {f.type === "dir" ? <Folder size={14} className="text-blue-400 shrink-0" /> : <FileText size={14} className="text-muted-foreground shrink-0" />}
                     <span className={f.type === "dir" ? "font-medium" : ""}>{f.name}</span>
                     {f.type === "file" && <span className="ml-auto text-xs text-muted-foreground">{(f.size / 1024).toFixed(1)} KB</span>}
+                    <ChevronRight size={12} className="text-muted-foreground opacity-0 group-hover:opacity-100 ml-1" />
                   </button>
                 ))}
               </div>
@@ -946,8 +1194,10 @@ export default function GitHubPage() {
           <div className="flex gap-2 flex-wrap">
             {selectedRepo && (
               <>
+                <Button size="sm" variant="outline" onClick={openEditRepo} className="gap-1.5 text-xs"><Settings2 size={12} />Edit Repo</Button>
+                <Button size="sm" variant="outline" onClick={openImportRepo} className="gap-1.5 text-xs"><FolderDown size={12} />Import to IDE</Button>
                 <Button size="sm" variant="outline" onClick={forkRepo} className="gap-1.5 text-xs"><GitFork size={12} />Fork</Button>
-                <Button size="sm" variant="outline" onClick={() => setShowPushProject(true)} className="gap-1.5 text-xs"><Upload size={12} />Push Project</Button>
+                <Button size="sm" variant="outline" onClick={openPushProject} className="gap-1.5 text-xs"><Upload size={12} />Push Project</Button>
                 <a href={selectedRepo.html_url} target="_blank" rel="noopener">
                   <Button size="sm" variant="outline" className="gap-1.5 text-xs"><ExternalLink size={12} />Open on GitHub</Button>
                 </a>
@@ -1104,19 +1354,141 @@ export default function GitHubPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Push Project */}
-      <Dialog open={showPushProject} onOpenChange={setShowPushProject}>
+      {/* ── Edit Repo ─── */}
+      <Dialog open={showEditRepo} onOpenChange={setShowEditRepo}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Push Project to GitHub</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle className="flex items-center gap-2"><Settings2 size={16} />Edit Repository</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
-            <p className="text-sm text-muted-foreground">Select a project to push to <strong>{selectedRepo?.full_name}</strong>.</p>
-            <div className="space-y-1.5"><label className="text-sm font-medium">Branch</label><Input value={pushBranch} onChange={e => setPushBranch(e.target.value)} placeholder="main" /></div>
-            <div className="space-y-1.5"><label className="text-sm font-medium">Commit message</label><Input value={pushMsg} onChange={e => setPushMsg(e.target.value)} /></div>
-            <p className="text-xs text-muted-foreground bg-muted/40 rounded p-2">Open a project in the IDE first, then use the IDE's GitHub Push button to push its files here.</p>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Repository name</label>
+              <Input value={editRepoForm.name} onChange={e => setEditRepoForm(f => ({ ...f, name: e.target.value }))} placeholder="repo-name" className="font-mono" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Description</label>
+              <Input value={editRepoForm.description} onChange={e => setEditRepoForm(f => ({ ...f, description: e.target.value }))} placeholder="Optional description" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Website / Homepage</label>
+              <Input value={editRepoForm.homepage} onChange={e => setEditRepoForm(f => ({ ...f, homepage: e.target.value }))} placeholder="https://example.com" />
+            </div>
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 border border-border">
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input type="checkbox" checked={editRepoForm.private} onChange={e => setEditRepoForm(f => ({ ...f, private: e.target.checked }))} className="rounded" />
+                <Lock size={13} /> Private repository
+              </label>
+              <p className="text-xs text-muted-foreground ml-auto">{editRepoForm.private ? "Only you can access" : "Anyone can view"}</p>
+            </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowPushProject(false)}>Cancel</Button>
-            <Button onClick={() => { setShowPushProject(false); toast({ title: "Open a project in the IDE and use its GitHub Push button." }); }}>Got it</Button>
+            <Button variant="outline" onClick={() => setShowEditRepo(false)}>Cancel</Button>
+            <Button onClick={updateRepo} disabled={!editRepoForm.name.trim()} className="gap-1.5"><CheckCheck size={14} />Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Import Repo to CloudIDE ─── */}
+      <Dialog open={showImportRepo} onOpenChange={v => { if (!importLoading) setShowImportRepo(v); }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle className="flex items-center gap-2"><FolderDown size={16} />Import to CloudIDE</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="flex items-start gap-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
+              <img src={selectedRepo?.owner.avatar_url} className="w-8 h-8 rounded-full shrink-0 mt-0.5" alt="" />
+              <div>
+                <p className="text-sm font-semibold">{selectedRepo?.full_name}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{selectedRepo?.description || "No description"}</p>
+                <div className="flex gap-3 mt-1.5 text-xs text-muted-foreground">
+                  {selectedRepo?.language && <span className="flex items-center"><LangDot lang={selectedRepo.language} />{selectedRepo.language}</span>}
+                  <span className="flex items-center gap-0.5"><Star size={11} />{selectedRepo?.stargazers_count}</span>
+                </div>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Project name in CloudIDE</label>
+              <Input value={importProjectName} onChange={e => setImportProjectName(e.target.value)} placeholder="my-project" className="font-mono" disabled={importLoading} />
+            </div>
+            {importLoading && (
+              <div className="flex items-center gap-2 p-3 bg-muted/40 rounded-lg border border-border">
+                <Loader2 size={14} className="animate-spin text-primary shrink-0" />
+                <p className="text-xs text-muted-foreground">{importProgress}</p>
+              </div>
+            )}
+            {!importLoading && (
+              <p className="text-xs text-muted-foreground">Up to 50 text files will be imported. Binary files are skipped automatically.</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowImportRepo(false)} disabled={importLoading}>Cancel</Button>
+            <Button onClick={importToCloudIDE} disabled={importLoading || !importProjectName.trim()} className="gap-1.5">
+              {importLoading ? <Loader2 size={14} className="animate-spin" /> : <FolderDown size={14} />}
+              {importLoading ? "Importing…" : "Import Repository"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Push Project to GitHub ─── */}
+      <Dialog open={showPushProject} onOpenChange={v => { if (!pushLoading) setShowPushProject(v); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle className="flex items-center gap-2"><Upload size={16} />Push Project to GitHub</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-muted-foreground">Push a CloudIDE project's files to <strong>{selectedRepo?.full_name}</strong>.</p>
+
+            {/* Project selector */}
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Select CloudIDE project</label>
+              {localProjects.length === 0 ? (
+                <p className="text-xs text-muted-foreground p-2 bg-muted/30 rounded">No projects found. Create one first.</p>
+              ) : (
+                <Select value={pushProjectId ? String(pushProjectId) : ""} onValueChange={v => setPushProjectId(Number(v))}>
+                  <SelectTrigger><SelectValue placeholder="Choose a project…" /></SelectTrigger>
+                  <SelectContent>
+                    {localProjects.map((p: any) => (
+                      <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Branch</label>
+                <Input value={pushBranch} onChange={e => setPushBranch(e.target.value)} placeholder="main" className="font-mono" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Commit message</label>
+                <Input value={pushMsg} onChange={e => setPushMsg(e.target.value)} />
+              </div>
+            </div>
+
+            {/* Push results */}
+            {pushResults && (
+              <div className="rounded-lg border border-border overflow-hidden">
+                <div className="px-3 py-2 bg-muted/30 border-b border-border text-xs font-medium">Push Results</div>
+                <div className="divide-y divide-border max-h-40 overflow-auto">
+                  {pushResults.map((r, i) => (
+                    <div key={i} className="flex items-center gap-2 px-3 py-2 text-xs">
+                      {r.status === "error"
+                        ? <XCircle size={12} className="text-red-400 shrink-0" />
+                        : <CheckCircle2 size={12} className="text-green-400 shrink-0" />}
+                      <span className="font-mono flex-1 truncate">{r.name}</span>
+                      <span className={`capitalize ${r.status === "error" ? "text-red-400" : "text-green-400"}`}>{r.status}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setShowPushProject(false); setPushResults(null); }} disabled={pushLoading}>
+              {pushResults ? "Done" : "Cancel"}
+            </Button>
+            {!pushResults && (
+              <Button onClick={doPushProject} disabled={pushLoading || !pushProjectId} className="gap-1.5">
+                {pushLoading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+                {pushLoading ? "Pushing…" : "Push to GitHub"}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

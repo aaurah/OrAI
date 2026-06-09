@@ -427,6 +427,18 @@ router.post("/github/repos/:owner/:repo/releases", requireToken, async (req: any
   res.status(201).json(r.data);
 });
 
+// ── Git Trees (recursive file listing for import) ─────────────────────────────
+router.get("/github/repos/:owner/:repo/git/trees/:tree_sha", requireToken, async (req: any, res) => {
+  const { recursive = "0" } = req.query;
+  const qs = recursive === "1" ? "?recursive=1" : "";
+  const r = await ghFetch(
+    `/repos/${req.params.owner}/${req.params.repo}/git/trees/${req.params.tree_sha}${qs}`,
+    req.githubToken
+  );
+  if (!r.ok) return res.status(r.status).json(r.data);
+  res.json(r.data);
+});
+
 // ── GitHub Actions / Workflows ────────────────────────────────────────────────
 router.get("/github/repos/:owner/:repo/actions/workflows", requireToken, async (req: any, res) => {
   const r = await ghFetch(`/repos/${req.params.owner}/${req.params.repo}/actions/workflows`, req.githubToken);
