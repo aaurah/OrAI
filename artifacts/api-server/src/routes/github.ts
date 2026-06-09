@@ -48,26 +48,26 @@ function requireToken(req: any, res: any, next: any) {
 }
 
 // ── Profile ───────────────────────────────────────────────────────────────────
-router.get("/api/github/user", requireToken, async (req: any, res) => {
+router.get("/github/user", requireToken, async (req: any, res) => {
   const r = await ghFetch("/user", req.githubToken);
   if (!r.ok) return res.status(r.status).json(r.data);
   res.json(r.data);
 });
 
-router.get("/api/github/user/orgs", requireToken, async (req: any, res) => {
+router.get("/github/user/orgs", requireToken, async (req: any, res) => {
   const r = await ghFetch("/user/orgs?per_page=100", req.githubToken);
   if (!r.ok) return res.status(r.status).json(r.data);
   res.json(r.data);
 });
 
-router.get("/api/github/users/:username", requireToken, async (req: any, res) => {
+router.get("/github/users/:username", requireToken, async (req: any, res) => {
   const r = await ghFetch(`/users/${req.params.username}`, req.githubToken);
   if (!r.ok) return res.status(r.status).json(r.data);
   res.json(r.data);
 });
 
 // ── Repositories ──────────────────────────────────────────────────────────────
-router.get("/api/github/repos", requireToken, async (req: any, res) => {
+router.get("/github/repos", requireToken, async (req: any, res) => {
   const { type = "owner", sort = "updated", per_page = 50, page = 1 } = req.query;
   const r = await ghFetch(
     `/user/repos?type=${type}&sort=${sort}&per_page=${per_page}&page=${page}`,
@@ -77,13 +77,13 @@ router.get("/api/github/repos", requireToken, async (req: any, res) => {
   res.json(r.data);
 });
 
-router.get("/api/github/repos/starred", requireToken, async (req: any, res) => {
+router.get("/github/repos/starred", requireToken, async (req: any, res) => {
   const r = await ghFetch("/user/starred?per_page=50&sort=updated", req.githubToken);
   if (!r.ok) return res.status(r.status).json(r.data);
   res.json(r.data);
 });
 
-router.post("/api/github/repos", requireToken, async (req: any, res) => {
+router.post("/github/repos", requireToken, async (req: any, res) => {
   const r = await ghFetch("/user/repos", req.githubToken, {
     method: "POST",
     body: JSON.stringify(req.body),
@@ -92,13 +92,13 @@ router.post("/api/github/repos", requireToken, async (req: any, res) => {
   res.status(201).json(r.data);
 });
 
-router.get("/api/github/repos/:owner/:repo", requireToken, async (req: any, res) => {
+router.get("/github/repos/:owner/:repo", requireToken, async (req: any, res) => {
   const r = await ghFetch(`/repos/${req.params.owner}/${req.params.repo}`, req.githubToken);
   if (!r.ok) return res.status(r.status).json(r.data);
   res.json(r.data);
 });
 
-router.patch("/api/github/repos/:owner/:repo", requireToken, async (req: any, res) => {
+router.patch("/github/repos/:owner/:repo", requireToken, async (req: any, res) => {
   const r = await ghFetch(`/repos/${req.params.owner}/${req.params.repo}`, req.githubToken, {
     method: "PATCH",
     body: JSON.stringify(req.body),
@@ -107,7 +107,7 @@ router.patch("/api/github/repos/:owner/:repo", requireToken, async (req: any, re
   res.json(r.data);
 });
 
-router.delete("/api/github/repos/:owner/:repo", requireToken, async (req: any, res) => {
+router.delete("/github/repos/:owner/:repo", requireToken, async (req: any, res) => {
   const r = await ghFetch(`/repos/${req.params.owner}/${req.params.repo}`, req.githubToken, {
     method: "DELETE",
   });
@@ -116,7 +116,7 @@ router.delete("/api/github/repos/:owner/:repo", requireToken, async (req: any, r
 });
 
 // Star / Unstar
-router.put("/api/github/user/starred/:owner/:repo", requireToken, async (req: any, res) => {
+router.put("/github/user/starred/:owner/:repo", requireToken, async (req: any, res) => {
   const r = await ghFetch(`/user/starred/${req.params.owner}/${req.params.repo}`, req.githubToken, {
     method: "PUT",
     headers: { "Content-Length": "0" } as any,
@@ -124,7 +124,7 @@ router.put("/api/github/user/starred/:owner/:repo", requireToken, async (req: an
   res.status(r.status).end();
 });
 
-router.delete("/api/github/user/starred/:owner/:repo", requireToken, async (req: any, res) => {
+router.delete("/github/user/starred/:owner/:repo", requireToken, async (req: any, res) => {
   const r = await ghFetch(`/user/starred/${req.params.owner}/${req.params.repo}`, req.githubToken, {
     method: "DELETE",
   });
@@ -132,13 +132,13 @@ router.delete("/api/github/user/starred/:owner/:repo", requireToken, async (req:
 });
 
 // Check if starred
-router.get("/api/github/user/starred/:owner/:repo", requireToken, async (req: any, res) => {
+router.get("/github/user/starred/:owner/:repo", requireToken, async (req: any, res) => {
   const r = await ghFetch(`/user/starred/${req.params.owner}/${req.params.repo}`, req.githubToken);
   res.json({ starred: r.status === 204 });
 });
 
 // Fork
-router.post("/api/github/repos/:owner/:repo/forks", requireToken, async (req: any, res) => {
+router.post("/github/repos/:owner/:repo/forks", requireToken, async (req: any, res) => {
   const r = await ghFetch(`/repos/${req.params.owner}/${req.params.repo}/forks`, req.githubToken, {
     method: "POST",
     body: JSON.stringify(req.body),
@@ -148,13 +148,13 @@ router.post("/api/github/repos/:owner/:repo/forks", requireToken, async (req: an
 });
 
 // ── Branches ──────────────────────────────────────────────────────────────────
-router.get("/api/github/repos/:owner/:repo/branches", requireToken, async (req: any, res) => {
+router.get("/github/repos/:owner/:repo/branches", requireToken, async (req: any, res) => {
   const r = await ghFetch(`/repos/${req.params.owner}/${req.params.repo}/branches?per_page=100`, req.githubToken);
   if (!r.ok) return res.status(r.status).json(r.data);
   res.json(r.data);
 });
 
-router.post("/api/github/repos/:owner/:repo/git/refs", requireToken, async (req: any, res) => {
+router.post("/github/repos/:owner/:repo/git/refs", requireToken, async (req: any, res) => {
   const r = await ghFetch(`/repos/${req.params.owner}/${req.params.repo}/git/refs`, req.githubToken, {
     method: "POST",
     body: JSON.stringify(req.body),
@@ -163,7 +163,7 @@ router.post("/api/github/repos/:owner/:repo/git/refs", requireToken, async (req:
   res.status(201).json(r.data);
 });
 
-router.delete("/api/github/repos/:owner/:repo/git/refs/*ref", requireToken, async (req: any, res) => {
+router.delete("/github/repos/:owner/:repo/git/refs/*ref", requireToken, async (req: any, res) => {
   const refPath = (req.params as any).ref ?? "";
   const r = await ghFetch(
     `/repos/${req.params.owner}/${req.params.repo}/git/refs/${refPath}`,
@@ -175,7 +175,7 @@ router.delete("/api/github/repos/:owner/:repo/git/refs/*ref", requireToken, asyn
 });
 
 // Get latest SHA for a branch (used when creating new branch)
-router.get("/api/github/repos/:owner/:repo/branches/:branch", requireToken, async (req: any, res) => {
+router.get("/github/repos/:owner/:repo/branches/:branch", requireToken, async (req: any, res) => {
   const r = await ghFetch(
     `/repos/${req.params.owner}/${req.params.repo}/branches/${req.params.branch}`,
     req.githubToken
@@ -185,7 +185,7 @@ router.get("/api/github/repos/:owner/:repo/branches/:branch", requireToken, asyn
 });
 
 // ── Commits ───────────────────────────────────────────────────────────────────
-router.get("/api/github/repos/:owner/:repo/commits", requireToken, async (req: any, res) => {
+router.get("/github/repos/:owner/:repo/commits", requireToken, async (req: any, res) => {
   const { sha = "", per_page = 30, page = 1 } = req.query;
   const qs = new URLSearchParams({ per_page: String(per_page), page: String(page) });
   if (sha) qs.set("sha", sha as string);
@@ -194,7 +194,7 @@ router.get("/api/github/repos/:owner/:repo/commits", requireToken, async (req: a
   res.json(r.data);
 });
 
-router.get("/api/github/repos/:owner/:repo/commits/:sha", requireToken, async (req: any, res) => {
+router.get("/github/repos/:owner/:repo/commits/:sha", requireToken, async (req: any, res) => {
   const r = await ghFetch(
     `/repos/${req.params.owner}/${req.params.repo}/commits/${req.params.sha}`,
     req.githubToken
@@ -204,7 +204,7 @@ router.get("/api/github/repos/:owner/:repo/commits/:sha", requireToken, async (r
 });
 
 // ── Issues ────────────────────────────────────────────────────────────────────
-router.get("/api/github/repos/:owner/:repo/issues", requireToken, async (req: any, res) => {
+router.get("/github/repos/:owner/:repo/issues", requireToken, async (req: any, res) => {
   const { state = "open", per_page = 30, page = 1, labels = "", assignee = "" } = req.query;
   const qs = new URLSearchParams({ state: String(state), per_page: String(per_page), page: String(page) });
   if (labels) qs.set("labels", labels as string);
@@ -216,7 +216,7 @@ router.get("/api/github/repos/:owner/:repo/issues", requireToken, async (req: an
   res.json(issues);
 });
 
-router.post("/api/github/repos/:owner/:repo/issues", requireToken, async (req: any, res) => {
+router.post("/github/repos/:owner/:repo/issues", requireToken, async (req: any, res) => {
   const r = await ghFetch(`/repos/${req.params.owner}/${req.params.repo}/issues`, req.githubToken, {
     method: "POST",
     body: JSON.stringify(req.body),
@@ -225,7 +225,7 @@ router.post("/api/github/repos/:owner/:repo/issues", requireToken, async (req: a
   res.status(201).json(r.data);
 });
 
-router.patch("/api/github/repos/:owner/:repo/issues/:number", requireToken, async (req: any, res) => {
+router.patch("/github/repos/:owner/:repo/issues/:number", requireToken, async (req: any, res) => {
   const r = await ghFetch(
     `/repos/${req.params.owner}/${req.params.repo}/issues/${req.params.number}`,
     req.githubToken,
@@ -235,7 +235,7 @@ router.patch("/api/github/repos/:owner/:repo/issues/:number", requireToken, asyn
   res.json(r.data);
 });
 
-router.get("/api/github/repos/:owner/:repo/issues/:number/comments", requireToken, async (req: any, res) => {
+router.get("/github/repos/:owner/:repo/issues/:number/comments", requireToken, async (req: any, res) => {
   const r = await ghFetch(
     `/repos/${req.params.owner}/${req.params.repo}/issues/${req.params.number}/comments`,
     req.githubToken
@@ -244,7 +244,7 @@ router.get("/api/github/repos/:owner/:repo/issues/:number/comments", requireToke
   res.json(r.data);
 });
 
-router.post("/api/github/repos/:owner/:repo/issues/:number/comments", requireToken, async (req: any, res) => {
+router.post("/github/repos/:owner/:repo/issues/:number/comments", requireToken, async (req: any, res) => {
   const r = await ghFetch(
     `/repos/${req.params.owner}/${req.params.repo}/issues/${req.params.number}/comments`,
     req.githubToken,
@@ -255,14 +255,14 @@ router.post("/api/github/repos/:owner/:repo/issues/:number/comments", requireTok
 });
 
 // Labels
-router.get("/api/github/repos/:owner/:repo/labels", requireToken, async (req: any, res) => {
+router.get("/github/repos/:owner/:repo/labels", requireToken, async (req: any, res) => {
   const r = await ghFetch(`/repos/${req.params.owner}/${req.params.repo}/labels?per_page=100`, req.githubToken);
   if (!r.ok) return res.status(r.status).json(r.data);
   res.json(r.data);
 });
 
 // ── Pull Requests ─────────────────────────────────────────────────────────────
-router.get("/api/github/repos/:owner/:repo/pulls", requireToken, async (req: any, res) => {
+router.get("/github/repos/:owner/:repo/pulls", requireToken, async (req: any, res) => {
   const { state = "open", per_page = 30, page = 1 } = req.query;
   const qs = new URLSearchParams({ state: String(state), per_page: String(per_page), page: String(page) });
   const r = await ghFetch(`/repos/${req.params.owner}/${req.params.repo}/pulls?${qs}`, req.githubToken);
@@ -270,7 +270,7 @@ router.get("/api/github/repos/:owner/:repo/pulls", requireToken, async (req: any
   res.json(r.data);
 });
 
-router.post("/api/github/repos/:owner/:repo/pulls", requireToken, async (req: any, res) => {
+router.post("/github/repos/:owner/:repo/pulls", requireToken, async (req: any, res) => {
   const r = await ghFetch(`/repos/${req.params.owner}/${req.params.repo}/pulls`, req.githubToken, {
     method: "POST",
     body: JSON.stringify(req.body),
@@ -279,7 +279,7 @@ router.post("/api/github/repos/:owner/:repo/pulls", requireToken, async (req: an
   res.status(201).json(r.data);
 });
 
-router.get("/api/github/repos/:owner/:repo/pulls/:number", requireToken, async (req: any, res) => {
+router.get("/github/repos/:owner/:repo/pulls/:number", requireToken, async (req: any, res) => {
   const r = await ghFetch(
     `/repos/${req.params.owner}/${req.params.repo}/pulls/${req.params.number}`,
     req.githubToken
@@ -288,7 +288,7 @@ router.get("/api/github/repos/:owner/:repo/pulls/:number", requireToken, async (
   res.json(r.data);
 });
 
-router.put("/api/github/repos/:owner/:repo/pulls/:number/merge", requireToken, async (req: any, res) => {
+router.put("/github/repos/:owner/:repo/pulls/:number/merge", requireToken, async (req: any, res) => {
   const r = await ghFetch(
     `/repos/${req.params.owner}/${req.params.repo}/pulls/${req.params.number}/merge`,
     req.githubToken,
@@ -298,7 +298,7 @@ router.put("/api/github/repos/:owner/:repo/pulls/:number/merge", requireToken, a
   res.json(r.data);
 });
 
-router.patch("/api/github/repos/:owner/:repo/pulls/:number", requireToken, async (req: any, res) => {
+router.patch("/github/repos/:owner/:repo/pulls/:number", requireToken, async (req: any, res) => {
   const r = await ghFetch(
     `/repos/${req.params.owner}/${req.params.repo}/pulls/${req.params.number}`,
     req.githubToken,
@@ -309,7 +309,7 @@ router.patch("/api/github/repos/:owner/:repo/pulls/:number", requireToken, async
 });
 
 // PR reviews
-router.get("/api/github/repos/:owner/:repo/pulls/:number/reviews", requireToken, async (req: any, res) => {
+router.get("/github/repos/:owner/:repo/pulls/:number/reviews", requireToken, async (req: any, res) => {
   const r = await ghFetch(
     `/repos/${req.params.owner}/${req.params.repo}/pulls/${req.params.number}/reviews`,
     req.githubToken
@@ -319,7 +319,7 @@ router.get("/api/github/repos/:owner/:repo/pulls/:number/reviews", requireToken,
 });
 
 // PR files changed
-router.get("/api/github/repos/:owner/:repo/pulls/:number/files", requireToken, async (req: any, res) => {
+router.get("/github/repos/:owner/:repo/pulls/:number/files", requireToken, async (req: any, res) => {
   const r = await ghFetch(
     `/repos/${req.params.owner}/${req.params.repo}/pulls/${req.params.number}/files`,
     req.githubToken
@@ -329,7 +329,7 @@ router.get("/api/github/repos/:owner/:repo/pulls/:number/files", requireToken, a
 });
 
 // ── Contents / File Browser ───────────────────────────────────────────────────
-router.get("/api/github/repos/:owner/:repo/contents", requireToken, async (req: any, res) => {
+router.get("/github/repos/:owner/:repo/contents", requireToken, async (req: any, res) => {
   const { ref = "" } = req.query;
   const qs = ref ? `?ref=${ref}` : "";
   const r = await ghFetch(`/repos/${req.params.owner}/${req.params.repo}/contents/${qs}`, req.githubToken);
@@ -337,7 +337,7 @@ router.get("/api/github/repos/:owner/:repo/contents", requireToken, async (req: 
   res.json(r.data);
 });
 
-router.get("/api/github/repos/:owner/:repo/contents/*filePath", requireToken, async (req: any, res) => {
+router.get("/github/repos/:owner/:repo/contents/*filePath", requireToken, async (req: any, res) => {
   const filePath = (req.params as any).filePath ?? "";
   const { ref = "" } = req.query;
   const qs = ref ? `?ref=${ref}` : "";
@@ -350,7 +350,7 @@ router.get("/api/github/repos/:owner/:repo/contents/*filePath", requireToken, as
 });
 
 // Create/update file in repo
-router.put("/api/github/repos/:owner/:repo/contents/*filePath", requireToken, async (req: any, res) => {
+router.put("/github/repos/:owner/:repo/contents/*filePath", requireToken, async (req: any, res) => {
   const filePath = (req.params as any).filePath ?? "";
   const r = await ghFetch(
     `/repos/${req.params.owner}/${req.params.repo}/contents/${filePath}`,
@@ -362,7 +362,7 @@ router.put("/api/github/repos/:owner/:repo/contents/*filePath", requireToken, as
 });
 
 // Delete file in repo
-router.delete("/api/github/repos/:owner/:repo/contents/*filePath", requireToken, async (req: any, res) => {
+router.delete("/github/repos/:owner/:repo/contents/*filePath", requireToken, async (req: any, res) => {
   const filePath = (req.params as any).filePath ?? "";
   const r = await ghFetch(
     `/repos/${req.params.owner}/${req.params.repo}/contents/${filePath}`,
@@ -375,7 +375,7 @@ router.delete("/api/github/repos/:owner/:repo/contents/*filePath", requireToken,
 
 // ── Push project files → GitHub repo ─────────────────────────────────────────
 // Creates or updates each file in the DB project to the target repo
-router.post("/api/github/repos/:owner/:repo/push-project", requireToken, async (req: any, res) => {
+router.post("/github/repos/:owner/:repo/push-project", requireToken, async (req: any, res) => {
   const { files, branch = "main", commitMessage = "Push from CloudIDE" } = req.body as {
     files: Array<{ name: string; content: string }>;
     branch?: string;
@@ -412,13 +412,13 @@ router.post("/api/github/repos/:owner/:repo/push-project", requireToken, async (
 });
 
 // ── Releases ──────────────────────────────────────────────────────────────────
-router.get("/api/github/repos/:owner/:repo/releases", requireToken, async (req: any, res) => {
+router.get("/github/repos/:owner/:repo/releases", requireToken, async (req: any, res) => {
   const r = await ghFetch(`/repos/${req.params.owner}/${req.params.repo}/releases?per_page=20`, req.githubToken);
   if (!r.ok) return res.status(r.status).json(r.data);
   res.json(r.data);
 });
 
-router.post("/api/github/repos/:owner/:repo/releases", requireToken, async (req: any, res) => {
+router.post("/github/repos/:owner/:repo/releases", requireToken, async (req: any, res) => {
   const r = await ghFetch(`/repos/${req.params.owner}/${req.params.repo}/releases`, req.githubToken, {
     method: "POST",
     body: JSON.stringify(req.body),
@@ -428,33 +428,33 @@ router.post("/api/github/repos/:owner/:repo/releases", requireToken, async (req:
 });
 
 // ── GitHub Actions / Workflows ────────────────────────────────────────────────
-router.get("/api/github/repos/:owner/:repo/actions/workflows", requireToken, async (req: any, res) => {
+router.get("/github/repos/:owner/:repo/actions/workflows", requireToken, async (req: any, res) => {
   const r = await ghFetch(`/repos/${req.params.owner}/${req.params.repo}/actions/workflows`, req.githubToken);
   if (!r.ok) return res.status(r.status).json(r.data);
   res.json(r.data);
 });
 
-router.get("/api/github/repos/:owner/:repo/actions/runs", requireToken, async (req: any, res) => {
+router.get("/github/repos/:owner/:repo/actions/runs", requireToken, async (req: any, res) => {
   const r = await ghFetch(`/repos/${req.params.owner}/${req.params.repo}/actions/runs?per_page=20`, req.githubToken);
   if (!r.ok) return res.status(r.status).json(r.data);
   res.json(r.data);
 });
 
 // ── Notifications ─────────────────────────────────────────────────────────────
-router.get("/api/github/notifications", requireToken, async (req: any, res) => {
+router.get("/github/notifications", requireToken, async (req: any, res) => {
   const r = await ghFetch("/notifications?per_page=30", req.githubToken);
   if (!r.ok) return res.status(r.status).json(r.data);
   res.json(r.data);
 });
 
 // ── Gists ─────────────────────────────────────────────────────────────────────
-router.get("/api/github/gists", requireToken, async (req: any, res) => {
+router.get("/github/gists", requireToken, async (req: any, res) => {
   const r = await ghFetch("/gists?per_page=30", req.githubToken);
   if (!r.ok) return res.status(r.status).json(r.data);
   res.json(r.data);
 });
 
-router.post("/api/github/gists", requireToken, async (req: any, res) => {
+router.post("/github/gists", requireToken, async (req: any, res) => {
   const r = await ghFetch("/gists", req.githubToken, {
     method: "POST",
     body: JSON.stringify(req.body),
@@ -464,7 +464,7 @@ router.post("/api/github/gists", requireToken, async (req: any, res) => {
 });
 
 // ── Search ────────────────────────────────────────────────────────────────────
-router.get("/api/github/search/repositories", requireToken, async (req: any, res) => {
+router.get("/github/search/repositories", requireToken, async (req: any, res) => {
   const { q, sort = "stars", order = "desc", per_page = 20 } = req.query;
   if (!q) return res.status(400).json({ error: "q required" });
   const qs = new URLSearchParams({ q: String(q), sort: String(sort), order: String(order), per_page: String(per_page) });
@@ -473,7 +473,7 @@ router.get("/api/github/search/repositories", requireToken, async (req: any, res
   res.json(r.data);
 });
 
-router.get("/api/github/search/users", requireToken, async (req: any, res) => {
+router.get("/github/search/users", requireToken, async (req: any, res) => {
   const { q, per_page = 20 } = req.query;
   if (!q) return res.status(400).json({ error: "q required" });
   const qs = new URLSearchParams({ q: String(q), per_page: String(per_page) });
@@ -482,7 +482,7 @@ router.get("/api/github/search/users", requireToken, async (req: any, res) => {
   res.json(r.data);
 });
 
-router.get("/api/github/search/code", requireToken, async (req: any, res) => {
+router.get("/github/search/code", requireToken, async (req: any, res) => {
   const { q, per_page = 20 } = req.query;
   if (!q) return res.status(400).json({ error: "q required" });
   const qs = new URLSearchParams({ q: String(q), per_page: String(per_page) });
@@ -491,7 +491,7 @@ router.get("/api/github/search/code", requireToken, async (req: any, res) => {
   res.json(r.data);
 });
 
-router.get("/api/github/search/issues", requireToken, async (req: any, res) => {
+router.get("/github/search/issues", requireToken, async (req: any, res) => {
   const { q, per_page = 20, state = "" } = req.query;
   if (!q) return res.status(400).json({ error: "q required" });
   const fullQ = state ? `${q} state:${state}` : String(q);
@@ -502,7 +502,7 @@ router.get("/api/github/search/issues", requireToken, async (req: any, res) => {
 });
 
 // ── Trending (public repos, no auth required) ─────────────────────────────────
-router.get("/api/github/trending", requireToken, async (req: any, res) => {
+router.get("/github/trending", requireToken, async (req: any, res) => {
   const { language = "", since = "daily" } = req.query;
   const dateMap: Record<string, number> = { daily: 1, weekly: 7, monthly: 30 };
   const days = dateMap[String(since)] ?? 1;
@@ -517,7 +517,7 @@ router.get("/api/github/trending", requireToken, async (req: any, res) => {
 });
 
 // ── Status check (no auth required) ──────────────────────────────────────────
-router.get("/api/github/status", (req, res) => {
+router.get("/github/status", (req, res) => {
   const token = getToken(req);
   res.json({ connected: !!token });
 });
