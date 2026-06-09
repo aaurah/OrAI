@@ -58,6 +58,19 @@ function getLanguage(filename: string) {
   return LANG_MAP[ext] ?? "plaintext";
 }
 
+// ── Simple markdown renderer ─────────────────────────────────────────────────
+
+function renderMarkdown(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*([^*\n]+)\*/g, "<em>$1</em>")
+    .replace(/`([^`\n]+)`/g, "<code style='font-family:monospace;font-size:10px;background:rgba(0,0,0,.25);padding:1px 4px;border-radius:3px'>$1</code>")
+    .replace(/\n/g, "<br>");
+}
+
 // ── ActionChip ───────────────────────────────────────────────────────────────
 
 function ActionChips({ actions, onOpen }: { actions: ExecutedAction[]; onOpen: (fileId: number) => void }) {
@@ -465,7 +478,10 @@ export default function IDE() {
               {msg.imageUrl && (
                 <img src={msg.imageUrl} alt="attachment" className="rounded-md mb-1.5 max-w-[200px] max-h-[150px] object-cover" />
               )}
-              <p className="whitespace-pre-wrap break-words leading-relaxed">{msg.content}</p>
+              <p
+                className="break-words leading-relaxed"
+                dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }}
+              />
               {msg.actions && msg.actions.length > 0 && (
                 <ActionChips actions={msg.actions} onOpen={openFileById} />
               )}
