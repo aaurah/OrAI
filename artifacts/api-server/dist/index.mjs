@@ -17476,9 +17476,9 @@ var require_side_channel = __commonJS({
   }
 });
 
-// ../../node_modules/.pnpm/qs@6.15.1/node_modules/qs/lib/formats.js
+// ../../node_modules/.pnpm/qs@6.15.2/node_modules/qs/lib/formats.js
 var require_formats = __commonJS({
-  "../../node_modules/.pnpm/qs@6.15.1/node_modules/qs/lib/formats.js"(exports, module) {
+  "../../node_modules/.pnpm/qs@6.15.2/node_modules/qs/lib/formats.js"(exports, module) {
     "use strict";
     var replace = String.prototype.replace;
     var percentTwenties = /%20/g;
@@ -17502,9 +17502,9 @@ var require_formats = __commonJS({
   }
 });
 
-// ../../node_modules/.pnpm/qs@6.15.1/node_modules/qs/lib/utils.js
+// ../../node_modules/.pnpm/qs@6.15.2/node_modules/qs/lib/utils.js
 var require_utils2 = __commonJS({
-  "../../node_modules/.pnpm/qs@6.15.1/node_modules/qs/lib/utils.js"(exports, module) {
+  "../../node_modules/.pnpm/qs@6.15.2/node_modules/qs/lib/utils.js"(exports, module) {
     "use strict";
     var formats = require_formats();
     var getSideChannel = require_side_channel();
@@ -17766,9 +17766,9 @@ var require_utils2 = __commonJS({
   }
 });
 
-// ../../node_modules/.pnpm/qs@6.15.1/node_modules/qs/lib/stringify.js
+// ../../node_modules/.pnpm/qs@6.15.2/node_modules/qs/lib/stringify.js
 var require_stringify = __commonJS({
-  "../../node_modules/.pnpm/qs@6.15.1/node_modules/qs/lib/stringify.js"(exports, module) {
+  "../../node_modules/.pnpm/qs@6.15.2/node_modules/qs/lib/stringify.js"(exports, module) {
     "use strict";
     var getSideChannel = require_side_channel();
     var utils = require_utils2();
@@ -17854,7 +17854,7 @@ var require_stringify = __commonJS({
       }
       if (obj === null) {
         if (strictNullHandling) {
-          return encoder && !encodeValuesOnly ? encoder(prefix, defaults2.encoder, charset, "key", format) : prefix;
+          return formatter(encoder && !encodeValuesOnly ? encoder(prefix, defaults2.encoder, charset, "key", format) : prefix);
         }
         obj = "";
       }
@@ -17872,7 +17872,9 @@ var require_stringify = __commonJS({
       var objKeys;
       if (generateArrayPrefix === "comma" && isArray(obj)) {
         if (encodeValuesOnly && encoder) {
-          obj = utils.maybeMap(obj, encoder);
+          obj = utils.maybeMap(obj, function(v) {
+            return v == null ? v : encoder(v);
+          });
         }
         objKeys = [{ value: obj.length > 0 ? obj.join(",") || null : void 0 }];
       } else if (isArray(filter)) {
@@ -18010,6 +18012,9 @@ var require_stringify = __commonJS({
       var sideChannel = getSideChannel();
       for (var i = 0; i < objKeys.length; ++i) {
         var key = objKeys[i];
+        if (typeof key === "undefined" || key === null) {
+          continue;
+        }
         var value = obj[key];
         if (options.skipNulls && value === null) {
           continue;
@@ -18039,9 +18044,9 @@ var require_stringify = __commonJS({
       var prefix = options.addQueryPrefix === true ? "?" : "";
       if (options.charsetSentinel) {
         if (options.charset === "iso-8859-1") {
-          prefix += "utf8=%26%2310003%3B&";
+          prefix += "utf8=%26%2310003%3B" + options.delimiter;
         } else {
-          prefix += "utf8=%E2%9C%93&";
+          prefix += "utf8=%E2%9C%93" + options.delimiter;
         }
       }
       return joined.length > 0 ? prefix + joined : "";
@@ -18049,9 +18054,9 @@ var require_stringify = __commonJS({
   }
 });
 
-// ../../node_modules/.pnpm/qs@6.15.1/node_modules/qs/lib/parse.js
+// ../../node_modules/.pnpm/qs@6.15.2/node_modules/qs/lib/parse.js
 var require_parse = __commonJS({
-  "../../node_modules/.pnpm/qs@6.15.1/node_modules/qs/lib/parse.js"(exports, module) {
+  "../../node_modules/.pnpm/qs@6.15.2/node_modules/qs/lib/parse.js"(exports, module) {
     "use strict";
     var utils = require_utils2();
     var has = Object.prototype.hasOwnProperty;
@@ -18224,8 +18229,8 @@ var require_parse = __commonJS({
       }
       return leaf;
     };
-    var splitKeyIntoSegments = function splitKeyIntoSegments2(givenKey, options) {
-      var key = options.allowDots ? givenKey.replace(/\.([^.[]+)/g, "[$1]") : givenKey;
+    var splitKeyIntoSegments = function splitKeyIntoSegments2(originalKey, options) {
+      var key = options.allowDots ? originalKey.replace(/\.([^.[]+)/g, "[$1]") : originalKey;
       if (options.depth <= 0) {
         if (!options.plainObjects && has.call(Object.prototype, key)) {
           if (!options.allowPrototypes) {
@@ -18234,37 +18239,56 @@ var require_parse = __commonJS({
         }
         return [key];
       }
-      var brackets = /(\[[^[\]]*])/;
-      var child = /(\[[^[\]]*])/g;
-      var segment = brackets.exec(key);
-      var parent = segment ? key.slice(0, segment.index) : key;
-      var keys = [];
+      var segments = [];
+      var first = key.indexOf("[");
+      var parent = first >= 0 ? key.slice(0, first) : key;
       if (parent) {
         if (!options.plainObjects && has.call(Object.prototype, parent)) {
           if (!options.allowPrototypes) {
             return;
           }
         }
-        keys[keys.length] = parent;
+        segments[segments.length] = parent;
       }
-      var i = 0;
-      while ((segment = child.exec(key)) !== null && i < options.depth) {
-        i += 1;
-        var segmentContent = segment[1].slice(1, -1);
-        if (!options.plainObjects && has.call(Object.prototype, segmentContent)) {
-          if (!options.allowPrototypes) {
-            return;
+      var n = key.length;
+      var open = first;
+      var collected = 0;
+      while (open >= 0 && collected < options.depth) {
+        var level = 1;
+        var i = open + 1;
+        var close = -1;
+        while (i < n && close < 0) {
+          var cu = key.charCodeAt(i);
+          if (cu === 91) {
+            level += 1;
+          } else if (cu === 93) {
+            level -= 1;
+            if (level === 0) {
+              close = i;
+            }
           }
+          i += 1;
         }
-        keys[keys.length] = segment[1];
+        if (close < 0) {
+          segments[segments.length] = "[" + key.slice(open) + "]";
+          return segments;
+        }
+        var seg = key.slice(open, close + 1);
+        var content = seg.slice(1, -1);
+        if (!options.plainObjects && has.call(Object.prototype, content) && !options.allowPrototypes) {
+          return;
+        }
+        segments[segments.length] = seg;
+        collected += 1;
+        open = key.indexOf("[", close + 1);
       }
-      if (segment) {
+      if (open >= 0) {
         if (options.strictDepth === true) {
           throw new RangeError("Input depth exceeded depth option of " + options.depth + " and strictDepth is true");
         }
-        keys[keys.length] = "[" + key.slice(segment.index) + "]";
+        segments[segments.length] = "[" + key.slice(open) + "]";
       }
-      return keys;
+      return segments;
     };
     var parseKeys = function parseQueryStringKeys(givenKey, val, options, valuesParsed) {
       if (!givenKey) {
@@ -18348,9 +18372,9 @@ var require_parse = __commonJS({
   }
 });
 
-// ../../node_modules/.pnpm/qs@6.15.1/node_modules/qs/lib/index.js
+// ../../node_modules/.pnpm/qs@6.15.2/node_modules/qs/lib/index.js
 var require_lib2 = __commonJS({
-  "../../node_modules/.pnpm/qs@6.15.1/node_modules/qs/lib/index.js"(exports, module) {
+  "../../node_modules/.pnpm/qs@6.15.2/node_modules/qs/lib/index.js"(exports, module) {
     "use strict";
     var stringify = require_stringify();
     var parse3 = require_parse();
@@ -37842,7 +37866,8 @@ var AiChatParams = objectType({
 var AiChatBody = objectType({
   "message": stringType().min(1),
   "context": stringType().nullish(),
-  "currentFile": stringType().nullish()
+  "currentFile": stringType().nullish(),
+  "imageUrl": stringType().nullish()
 });
 var AiChatResponse = objectType({
   "reply": stringType(),
@@ -56349,7 +56374,7 @@ router2.get("/projects", async (_req, res) => {
 router2.post("/projects", async (req, res) => {
   const parsed = CreateProjectBody.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ error: parsed.error.message });
+    return void res.status(400).json({ error: parsed.error.message });
   }
   try {
     const [project] = await db.insert(projectsTable).values({
@@ -56367,10 +56392,10 @@ router2.post("/projects", async (req, res) => {
 });
 router2.get("/projects/:id", async (req, res) => {
   const parsed = GetProjectParams.safeParse({ id: Number(req.params.id) });
-  if (!parsed.success) return res.status(400).json({ error: "Invalid id" });
+  if (!parsed.success) return void res.status(400).json({ error: "Invalid id" });
   try {
     const [project] = await db.select().from(projectsTable).where(eq(projectsTable.id, parsed.data.id));
-    if (!project) return res.status(404).json({ error: "Not found" });
+    if (!project) return void res.status(404).json({ error: "Not found" });
     res.json(serializeProject(project));
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch project" });
@@ -56378,12 +56403,12 @@ router2.get("/projects/:id", async (req, res) => {
 });
 router2.patch("/projects/:id", async (req, res) => {
   const paramsParsed = UpdateProjectParams.safeParse({ id: Number(req.params.id) });
-  if (!paramsParsed.success) return res.status(400).json({ error: "Invalid id" });
+  if (!paramsParsed.success) return void res.status(400).json({ error: "Invalid id" });
   const bodyParsed = UpdateProjectBody.safeParse(req.body);
-  if (!bodyParsed.success) return res.status(400).json({ error: bodyParsed.error.message });
+  if (!bodyParsed.success) return void res.status(400).json({ error: bodyParsed.error.message });
   try {
     const [updated] = await db.update(projectsTable).set({ ...bodyParsed.data, updatedAt: /* @__PURE__ */ new Date() }).where(eq(projectsTable.id, paramsParsed.data.id)).returning();
-    if (!updated) return res.status(404).json({ error: "Not found" });
+    if (!updated) return void res.status(404).json({ error: "Not found" });
     res.json(serializeProject(updated));
   } catch (err) {
     res.status(500).json({ error: "Failed to update project" });
@@ -56391,7 +56416,7 @@ router2.patch("/projects/:id", async (req, res) => {
 });
 router2.delete("/projects/:id", async (req, res) => {
   const parsed = DeleteProjectParams.safeParse({ id: Number(req.params.id) });
-  if (!parsed.success) return res.status(400).json({ error: "Invalid id" });
+  if (!parsed.success) return void res.status(400).json({ error: "Invalid id" });
   try {
     await db.delete(projectsTable).where(eq(projectsTable.id, parsed.data.id));
     res.status(204).send();
@@ -56635,7 +56660,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-seri
 router2.get("/projects/:id/preview/*filename", async (req, res) => {
   try {
     const projectId = Number(req.params.id);
-    const filename = req.params.filename;
+    const rawFilename = req.params.filename;
+    const filename = Array.isArray(rawFilename) ? rawFilename.join("/") : rawFilename;
     const ext = filename.split(".").pop()?.toLowerCase() ?? "";
     const [file2] = await db.select().from(filesTable).where(and(eq(filesTable.projectId, projectId), eq(filesTable.name, filename))).orderBy(desc(filesTable.id));
     if (!file2) {
@@ -56662,7 +56688,7 @@ var import_express3 = __toESM(require_express2(), 1);
 var router3 = (0, import_express3.Router)();
 router3.get("/projects/:id/files", async (req, res) => {
   const parsed = ListFilesParams.safeParse({ id: Number(req.params.id) });
-  if (!parsed.success) return res.status(400).json({ error: "Invalid id" });
+  if (!parsed.success) return void res.status(400).json({ error: "Invalid id" });
   try {
     const files = await db.select().from(filesTable).where(eq(filesTable.projectId, parsed.data.id));
     const seen = /* @__PURE__ */ new Map();
@@ -56677,7 +56703,7 @@ router3.get("/projects/:id/files", async (req, res) => {
 });
 router3.post("/projects/:id/files/dedup", async (req, res) => {
   const parsed = ListFilesParams.safeParse({ id: Number(req.params.id) });
-  if (!parsed.success) return res.status(400).json({ error: "Invalid id" });
+  if (!parsed.success) return void res.status(400).json({ error: "Invalid id" });
   try {
     const files = await db.select().from(filesTable).where(eq(filesTable.projectId, parsed.data.id));
     const toDelete = [];
@@ -56703,9 +56729,9 @@ router3.post("/projects/:id/files/dedup", async (req, res) => {
 });
 router3.post("/projects/:id/files", async (req, res) => {
   const paramsParsed = CreateFileParams.safeParse({ id: Number(req.params.id) });
-  if (!paramsParsed.success) return res.status(400).json({ error: "Invalid id" });
+  if (!paramsParsed.success) return void res.status(400).json({ error: "Invalid id" });
   const bodyParsed = CreateFileBody.safeParse(req.body);
-  if (!bodyParsed.success) return res.status(400).json({ error: bodyParsed.error.message });
+  if (!bodyParsed.success) return void res.status(400).json({ error: bodyParsed.error.message });
   try {
     const [file2] = await db.insert(filesTable).values({
       projectId: paramsParsed.data.id,
@@ -56722,12 +56748,12 @@ router3.post("/projects/:id/files", async (req, res) => {
 });
 router3.get("/projects/:id/files/:fileId", async (req, res) => {
   const parsed = GetFileParams.safeParse({ id: Number(req.params.id), fileId: Number(req.params.fileId) });
-  if (!parsed.success) return res.status(400).json({ error: "Invalid params" });
+  if (!parsed.success) return void res.status(400).json({ error: "Invalid params" });
   try {
     const [file2] = await db.select().from(filesTable).where(
       and(eq(filesTable.id, parsed.data.fileId), eq(filesTable.projectId, parsed.data.id))
     );
-    if (!file2) return res.status(404).json({ error: "Not found" });
+    if (!file2) return void res.status(404).json({ error: "Not found" });
     res.json(serializeFile(file2));
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch file" });
@@ -56735,15 +56761,15 @@ router3.get("/projects/:id/files/:fileId", async (req, res) => {
 });
 router3.patch("/projects/:id/files/:fileId", async (req, res) => {
   const paramsParsed = UpdateFileParams.safeParse({ id: Number(req.params.id), fileId: Number(req.params.fileId) });
-  if (!paramsParsed.success) return res.status(400).json({ error: "Invalid params" });
+  if (!paramsParsed.success) return void res.status(400).json({ error: "Invalid params" });
   const bodyParsed = UpdateFileBody.safeParse(req.body);
-  if (!bodyParsed.success) return res.status(400).json({ error: bodyParsed.error.message });
+  if (!bodyParsed.success) return void res.status(400).json({ error: bodyParsed.error.message });
   try {
     const updateData = { updatedAt: /* @__PURE__ */ new Date() };
     if (bodyParsed.data.content !== void 0) updateData.content = bodyParsed.data.content;
     if (bodyParsed.data.name !== void 0) updateData.name = bodyParsed.data.name;
     const [updated] = await db.update(filesTable).set(updateData).where(and(eq(filesTable.id, paramsParsed.data.fileId), eq(filesTable.projectId, paramsParsed.data.id))).returning();
-    if (!updated) return res.status(404).json({ error: "Not found" });
+    if (!updated) return void res.status(404).json({ error: "Not found" });
     res.json(serializeFile(updated));
   } catch (err) {
     res.status(500).json({ error: "Failed to update file" });
@@ -56751,7 +56777,7 @@ router3.patch("/projects/:id/files/:fileId", async (req, res) => {
 });
 router3.delete("/projects/:id/files/:fileId", async (req, res) => {
   const parsed = DeleteFileParams.safeParse({ id: Number(req.params.id), fileId: Number(req.params.fileId) });
-  if (!parsed.success) return res.status(400).json({ error: "Invalid params" });
+  if (!parsed.success) return void res.status(400).json({ error: "Invalid params" });
   try {
     await db.delete(filesTable).where(
       and(eq(filesTable.id, parsed.data.fileId), eq(filesTable.projectId, parsed.data.id))
@@ -56820,7 +56846,7 @@ router4.get("/deployments", async (_req, res) => {
 });
 router4.get("/deployments/:id", async (req, res) => {
   const parsed = GetDeploymentParams.safeParse({ id: Number(req.params.id) });
-  if (!parsed.success) return res.status(400).json({ error: "Invalid id" });
+  if (!parsed.success) return void res.status(400).json({ error: "Invalid id" });
   try {
     const rows = await db.select({
       id: deploymentsTable.id,
@@ -56835,7 +56861,7 @@ router4.get("/deployments/:id", async (req, res) => {
       createdAt: deploymentsTable.createdAt,
       updatedAt: deploymentsTable.updatedAt
     }).from(deploymentsTable).leftJoin(projectsTable, eq(deploymentsTable.projectId, projectsTable.id)).where(eq(deploymentsTable.id, parsed.data.id));
-    if (!rows[0]) return res.status(404).json({ error: "Not found" });
+    if (!rows[0]) return void res.status(404).json({ error: "Not found" });
     res.json(serializeDeployment(rows[0]));
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch deployment" });
@@ -56843,7 +56869,7 @@ router4.get("/deployments/:id", async (req, res) => {
 });
 router4.get("/projects/:id/deployments", async (req, res) => {
   const parsed = ListDeploymentsParams.safeParse({ id: Number(req.params.id) });
-  if (!parsed.success) return res.status(400).json({ error: "Invalid id" });
+  if (!parsed.success) return void res.status(400).json({ error: "Invalid id" });
   try {
     const deployments = await db.select().from(deploymentsTable).where(eq(deploymentsTable.projectId, parsed.data.id)).orderBy(desc(deploymentsTable.createdAt));
     res.json(deployments.map((d) => ({ ...serializeDeployment(d), projectName: null })));
@@ -56853,9 +56879,9 @@ router4.get("/projects/:id/deployments", async (req, res) => {
 });
 router4.post("/projects/:id/deployments", async (req, res) => {
   const paramsParsed = CreateDeploymentParams.safeParse({ id: Number(req.params.id) });
-  if (!paramsParsed.success) return res.status(400).json({ error: "Invalid id" });
+  if (!paramsParsed.success) return void res.status(400).json({ error: "Invalid id" });
   const bodyParsed = CreateDeploymentBody.safeParse(req.body);
-  if (!bodyParsed.success) return res.status(400).json({ error: bodyParsed.error.message });
+  if (!bodyParsed.success) return void res.status(400).json({ error: bodyParsed.error.message });
   try {
     const projectId = paramsParsed.data.id;
     const host = req.get("host") || "localhost";
@@ -56887,16 +56913,16 @@ router4.post("/projects/:id/deployments", async (req, res) => {
 });
 router4.patch("/deployments/:id", async (req, res) => {
   const paramsParsed = UpdateDeploymentParams.safeParse({ id: Number(req.params.id) });
-  if (!paramsParsed.success) return res.status(400).json({ error: "Invalid id" });
+  if (!paramsParsed.success) return void res.status(400).json({ error: "Invalid id" });
   const bodyParsed = UpdateDeploymentBody.safeParse(req.body);
-  if (!bodyParsed.success) return res.status(400).json({ error: bodyParsed.error.message });
+  if (!bodyParsed.success) return void res.status(400).json({ error: bodyParsed.error.message });
   try {
     const updateData = { updatedAt: /* @__PURE__ */ new Date() };
     if (bodyParsed.data.customDomain !== void 0) updateData.customDomain = bodyParsed.data.customDomain;
     if (bodyParsed.data.status !== void 0) updateData.status = bodyParsed.data.status;
     if (bodyParsed.data.domainVerified !== void 0) updateData.domainVerified = bodyParsed.data.domainVerified;
     const [updated] = await db.update(deploymentsTable).set(updateData).where(eq(deploymentsTable.id, paramsParsed.data.id)).returning();
-    if (!updated) return res.status(404).json({ error: "Not found" });
+    if (!updated) return void res.status(404).json({ error: "Not found" });
     res.json({ ...serializeDeployment(updated), projectName: null });
   } catch (err) {
     res.status(500).json({ error: "Failed to update deployment" });
@@ -56904,7 +56930,7 @@ router4.patch("/deployments/:id", async (req, res) => {
 });
 router4.delete("/deployments/:id", async (req, res) => {
   const parsed = DeleteDeploymentParams.safeParse({ id: Number(req.params.id) });
-  if (!parsed.success) return res.status(400).json({ error: "Invalid id" });
+  if (!parsed.success) return void res.status(400).json({ error: "Invalid id" });
   try {
     await db.delete(deploymentsTable).where(eq(deploymentsTable.id, parsed.data.id));
     res.status(204).send();
@@ -56926,7 +56952,7 @@ var import_express5 = __toESM(require_express2(), 1);
 var router5 = (0, import_express5.Router)();
 router5.get("/deployments/:id/dns", async (req, res) => {
   const parsed = ListDnsRecordsParams.safeParse({ id: Number(req.params.id) });
-  if (!parsed.success) return res.status(400).json({ error: "Invalid id" });
+  if (!parsed.success) return void res.status(400).json({ error: "Invalid id" });
   try {
     const records = await db.select().from(dnsRecordsTable).where(eq(dnsRecordsTable.deploymentId, parsed.data.id));
     res.json(records.map(serializeDns));
@@ -56936,9 +56962,9 @@ router5.get("/deployments/:id/dns", async (req, res) => {
 });
 router5.post("/deployments/:id/dns", async (req, res) => {
   const paramsParsed = CreateDnsRecordParams.safeParse({ id: Number(req.params.id) });
-  if (!paramsParsed.success) return res.status(400).json({ error: "Invalid id" });
+  if (!paramsParsed.success) return void res.status(400).json({ error: "Invalid id" });
   const bodyParsed = CreateDnsRecordBody.safeParse(req.body);
-  if (!bodyParsed.success) return res.status(400).json({ error: bodyParsed.error.message });
+  if (!bodyParsed.success) return void res.status(400).json({ error: bodyParsed.error.message });
   try {
     const [record2] = await db.insert(dnsRecordsTable).values({
       deploymentId: paramsParsed.data.id,
@@ -56955,9 +56981,9 @@ router5.post("/deployments/:id/dns", async (req, res) => {
 });
 router5.patch("/deployments/:id/dns/:recordId", async (req, res) => {
   const paramsParsed = UpdateDnsRecordParams.safeParse({ id: Number(req.params.id), recordId: Number(req.params.recordId) });
-  if (!paramsParsed.success) return res.status(400).json({ error: "Invalid params" });
+  if (!paramsParsed.success) return void res.status(400).json({ error: "Invalid params" });
   const bodyParsed = UpdateDnsRecordBody.safeParse(req.body);
-  if (!bodyParsed.success) return res.status(400).json({ error: bodyParsed.error.message });
+  if (!bodyParsed.success) return void res.status(400).json({ error: bodyParsed.error.message });
   try {
     const updateData = { updatedAt: /* @__PURE__ */ new Date() };
     if (bodyParsed.data.type !== void 0) updateData.type = bodyParsed.data.type;
@@ -56966,7 +56992,7 @@ router5.patch("/deployments/:id/dns/:recordId", async (req, res) => {
     if (bodyParsed.data.ttl !== void 0) updateData.ttl = bodyParsed.data.ttl;
     if (bodyParsed.data.priority !== void 0) updateData.priority = bodyParsed.data.priority;
     const [updated] = await db.update(dnsRecordsTable).set(updateData).where(and(eq(dnsRecordsTable.id, paramsParsed.data.recordId), eq(dnsRecordsTable.deploymentId, paramsParsed.data.id))).returning();
-    if (!updated) return res.status(404).json({ error: "Not found" });
+    if (!updated) return void res.status(404).json({ error: "Not found" });
     res.json(serializeDns(updated));
   } catch (err) {
     res.status(500).json({ error: "Failed to update DNS record" });
@@ -56974,7 +57000,7 @@ router5.patch("/deployments/:id/dns/:recordId", async (req, res) => {
 });
 router5.delete("/deployments/:id/dns/:recordId", async (req, res) => {
   const parsed = DeleteDnsRecordParams.safeParse({ id: Number(req.params.id), recordId: Number(req.params.recordId) });
-  if (!parsed.success) return res.status(400).json({ error: "Invalid params" });
+  if (!parsed.success) return void res.status(400).json({ error: "Invalid params" });
   try {
     await db.delete(dnsRecordsTable).where(
       and(eq(dnsRecordsTable.id, parsed.data.recordId), eq(dnsRecordsTable.deploymentId, parsed.data.id))
@@ -56986,12 +57012,12 @@ router5.delete("/deployments/:id/dns/:recordId", async (req, res) => {
 });
 router5.post("/deployments/:id/verify-domain", async (req, res) => {
   const id = Number(req.params.id);
-  if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
+  if (isNaN(id)) return void res.status(400).json({ error: "Invalid id" });
   try {
     const [deployment] = await db.select().from(deploymentsTable).where(eq(deploymentsTable.id, id));
-    if (!deployment) return res.status(404).json({ error: "Not found" });
+    if (!deployment) return void res.status(404).json({ error: "Not found" });
     if (!deployment.customDomain) {
-      return res.json({ verified: false, domain: null, message: "No custom domain configured." });
+      return void res.json({ verified: false, domain: null, message: "No custom domain configured." });
     }
     const previewHost = deployment.url ? (() => {
       try {
@@ -57006,9 +57032,9 @@ router5.post("/deployments/:id/verify-domain", async (req, res) => {
       await db.update(deploymentsTable).set({ domainVerified: true, updatedAt: /* @__PURE__ */ new Date() }).where(eq(deploymentsTable.id, id));
     }
     if (hasValidCname) {
-      return res.json({ verified: true, domain: deployment.customDomain, message: "Domain is verified and pointing to this deployment." });
+      return void res.json({ verified: true, domain: deployment.customDomain, message: "Domain is verified and pointing to this deployment." });
     }
-    return res.json({
+    return void res.json({
       verified: false,
       domain: deployment.customDomain,
       message: previewHost ? `Add a CNAME record pointing to ${previewHost} to verify ownership.` : "Add the required DNS records and try again."
@@ -57987,30 +58013,30 @@ async function ghFetch(path, token, options = {}) {
   return { ok: res.ok, status: res.status, data };
 }
 function notConnected(res) {
-  return res.status(401).json({
+  return void res.status(401).json({
     error: "GitHub not connected",
     message: "Please connect your GitHub account in Settings \u2192 GitHub."
   });
 }
 function requireToken(req, res, next) {
   const token = getToken(req);
-  if (!token) return notConnected(res);
+  if (!token) return void notConnected(res);
   req.githubToken = token;
   next();
 }
 router8.get("/github/user", requireToken, async (req, res) => {
   const r = await ghFetch("/user", req.githubToken);
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 router8.get("/github/user/orgs", requireToken, async (req, res) => {
   const r = await ghFetch("/user/orgs?per_page=100", req.githubToken);
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 router8.get("/github/users/:username", requireToken, async (req, res) => {
   const r = await ghFetch(`/users/${req.params.username}`, req.githubToken);
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 router8.get("/github/repos", requireToken, async (req, res) => {
@@ -58019,12 +58045,12 @@ router8.get("/github/repos", requireToken, async (req, res) => {
     `/user/repos?type=${type}&sort=${sort}&per_page=${per_page}&page=${page}`,
     req.githubToken
   );
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 router8.get("/github/repos/starred", requireToken, async (req, res) => {
   const r = await ghFetch("/user/starred?per_page=50&sort=updated", req.githubToken);
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 router8.post("/github/repos", requireToken, async (req, res) => {
@@ -58032,12 +58058,12 @@ router8.post("/github/repos", requireToken, async (req, res) => {
     method: "POST",
     body: JSON.stringify(req.body)
   });
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.status(201).json(r.data);
 });
 router8.get("/github/repos/:owner/:repo", requireToken, async (req, res) => {
   const r = await ghFetch(`/repos/${req.params.owner}/${req.params.repo}`, req.githubToken);
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 router8.patch("/github/repos/:owner/:repo", requireToken, async (req, res) => {
@@ -58045,15 +58071,15 @@ router8.patch("/github/repos/:owner/:repo", requireToken, async (req, res) => {
     method: "PATCH",
     body: JSON.stringify(req.body)
   });
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 router8.delete("/github/repos/:owner/:repo", requireToken, async (req, res) => {
   const r = await ghFetch(`/repos/${req.params.owner}/${req.params.repo}`, req.githubToken, {
     method: "DELETE"
   });
-  if (r.status === 204) return res.status(204).end();
-  return res.status(r.status).json(r.data);
+  if (r.status === 204) return void res.status(204).end();
+  return void res.status(r.status).json(r.data);
 });
 router8.put("/github/user/starred/:owner/:repo", requireToken, async (req, res) => {
   const r = await ghFetch(`/user/starred/${req.params.owner}/${req.params.repo}`, req.githubToken, {
@@ -58077,12 +58103,12 @@ router8.post("/github/repos/:owner/:repo/forks", requireToken, async (req, res) 
     method: "POST",
     body: JSON.stringify(req.body)
   });
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.status(202).json(r.data);
 });
 router8.get("/github/repos/:owner/:repo/branches", requireToken, async (req, res) => {
   const r = await ghFetch(`/repos/${req.params.owner}/${req.params.repo}/branches?per_page=100`, req.githubToken);
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 router8.post("/github/repos/:owner/:repo/git/refs", requireToken, async (req, res) => {
@@ -58090,7 +58116,7 @@ router8.post("/github/repos/:owner/:repo/git/refs", requireToken, async (req, re
     method: "POST",
     body: JSON.stringify(req.body)
   });
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.status(201).json(r.data);
 });
 router8.delete("/github/repos/:owner/:repo/git/refs/*ref", requireToken, async (req, res) => {
@@ -58100,15 +58126,15 @@ router8.delete("/github/repos/:owner/:repo/git/refs/*ref", requireToken, async (
     req.githubToken,
     { method: "DELETE" }
   );
-  if (r.status === 204) return res.status(204).end();
-  return res.status(r.status).json(r.data);
+  if (r.status === 204) return void res.status(204).end();
+  return void res.status(r.status).json(r.data);
 });
 router8.get("/github/repos/:owner/:repo/branches/:branch", requireToken, async (req, res) => {
   const r = await ghFetch(
     `/repos/${req.params.owner}/${req.params.repo}/branches/${req.params.branch}`,
     req.githubToken
   );
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 router8.get("/github/repos/:owner/:repo/commits", requireToken, async (req, res) => {
@@ -58116,7 +58142,7 @@ router8.get("/github/repos/:owner/:repo/commits", requireToken, async (req, res)
   const qs = new URLSearchParams({ per_page: String(per_page), page: String(page) });
   if (sha) qs.set("sha", sha);
   const r = await ghFetch(`/repos/${req.params.owner}/${req.params.repo}/commits?${qs}`, req.githubToken);
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 router8.get("/github/repos/:owner/:repo/commits/:sha", requireToken, async (req, res) => {
@@ -58124,7 +58150,7 @@ router8.get("/github/repos/:owner/:repo/commits/:sha", requireToken, async (req,
     `/repos/${req.params.owner}/${req.params.repo}/commits/${req.params.sha}`,
     req.githubToken
   );
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 router8.get("/github/repos/:owner/:repo/issues", requireToken, async (req, res) => {
@@ -58133,7 +58159,7 @@ router8.get("/github/repos/:owner/:repo/issues", requireToken, async (req, res) 
   if (labels) qs.set("labels", labels);
   if (assignee) qs.set("assignee", assignee);
   const r = await ghFetch(`/repos/${req.params.owner}/${req.params.repo}/issues?${qs}`, req.githubToken);
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   const issues = Array.isArray(r.data) ? r.data.filter((i) => !i.pull_request) : r.data;
   res.json(issues);
 });
@@ -58142,7 +58168,7 @@ router8.post("/github/repos/:owner/:repo/issues", requireToken, async (req, res)
     method: "POST",
     body: JSON.stringify(req.body)
   });
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.status(201).json(r.data);
 });
 router8.patch("/github/repos/:owner/:repo/issues/:number", requireToken, async (req, res) => {
@@ -58151,7 +58177,7 @@ router8.patch("/github/repos/:owner/:repo/issues/:number", requireToken, async (
     req.githubToken,
     { method: "PATCH", body: JSON.stringify(req.body) }
   );
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 router8.get("/github/repos/:owner/:repo/issues/:number/comments", requireToken, async (req, res) => {
@@ -58159,7 +58185,7 @@ router8.get("/github/repos/:owner/:repo/issues/:number/comments", requireToken, 
     `/repos/${req.params.owner}/${req.params.repo}/issues/${req.params.number}/comments`,
     req.githubToken
   );
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 router8.post("/github/repos/:owner/:repo/issues/:number/comments", requireToken, async (req, res) => {
@@ -58168,19 +58194,19 @@ router8.post("/github/repos/:owner/:repo/issues/:number/comments", requireToken,
     req.githubToken,
     { method: "POST", body: JSON.stringify(req.body) }
   );
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.status(201).json(r.data);
 });
 router8.get("/github/repos/:owner/:repo/labels", requireToken, async (req, res) => {
   const r = await ghFetch(`/repos/${req.params.owner}/${req.params.repo}/labels?per_page=100`, req.githubToken);
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 router8.get("/github/repos/:owner/:repo/pulls", requireToken, async (req, res) => {
   const { state = "open", per_page = 30, page = 1 } = req.query;
   const qs = new URLSearchParams({ state: String(state), per_page: String(per_page), page: String(page) });
   const r = await ghFetch(`/repos/${req.params.owner}/${req.params.repo}/pulls?${qs}`, req.githubToken);
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 router8.post("/github/repos/:owner/:repo/pulls", requireToken, async (req, res) => {
@@ -58188,7 +58214,7 @@ router8.post("/github/repos/:owner/:repo/pulls", requireToken, async (req, res) 
     method: "POST",
     body: JSON.stringify(req.body)
   });
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.status(201).json(r.data);
 });
 router8.get("/github/repos/:owner/:repo/pulls/:number", requireToken, async (req, res) => {
@@ -58196,7 +58222,7 @@ router8.get("/github/repos/:owner/:repo/pulls/:number", requireToken, async (req
     `/repos/${req.params.owner}/${req.params.repo}/pulls/${req.params.number}`,
     req.githubToken
   );
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 router8.put("/github/repos/:owner/:repo/pulls/:number/merge", requireToken, async (req, res) => {
@@ -58205,7 +58231,7 @@ router8.put("/github/repos/:owner/:repo/pulls/:number/merge", requireToken, asyn
     req.githubToken,
     { method: "PUT", body: JSON.stringify(req.body) }
   );
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 router8.patch("/github/repos/:owner/:repo/pulls/:number", requireToken, async (req, res) => {
@@ -58214,7 +58240,7 @@ router8.patch("/github/repos/:owner/:repo/pulls/:number", requireToken, async (r
     req.githubToken,
     { method: "PATCH", body: JSON.stringify(req.body) }
   );
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 router8.get("/github/repos/:owner/:repo/pulls/:number/reviews", requireToken, async (req, res) => {
@@ -58222,7 +58248,7 @@ router8.get("/github/repos/:owner/:repo/pulls/:number/reviews", requireToken, as
     `/repos/${req.params.owner}/${req.params.repo}/pulls/${req.params.number}/reviews`,
     req.githubToken
   );
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 router8.get("/github/repos/:owner/:repo/pulls/:number/files", requireToken, async (req, res) => {
@@ -58230,14 +58256,14 @@ router8.get("/github/repos/:owner/:repo/pulls/:number/files", requireToken, asyn
     `/repos/${req.params.owner}/${req.params.repo}/pulls/${req.params.number}/files`,
     req.githubToken
   );
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 router8.get("/github/repos/:owner/:repo/contents", requireToken, async (req, res) => {
   const { ref = "" } = req.query;
   const qs = ref ? `?ref=${ref}` : "";
   const r = await ghFetch(`/repos/${req.params.owner}/${req.params.repo}/contents/${qs}`, req.githubToken);
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 router8.get("/github/repos/:owner/:repo/contents/*filePath", requireToken, async (req, res) => {
@@ -58248,7 +58274,7 @@ router8.get("/github/repos/:owner/:repo/contents/*filePath", requireToken, async
     `/repos/${req.params.owner}/${req.params.repo}/contents/${filePath}${qs}`,
     req.githubToken
   );
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 router8.put("/github/repos/:owner/:repo/contents/*filePath", requireToken, async (req, res) => {
@@ -58258,7 +58284,7 @@ router8.put("/github/repos/:owner/:repo/contents/*filePath", requireToken, async
     req.githubToken,
     { method: "PUT", body: JSON.stringify(req.body) }
   );
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.status(r.status === 201 ? 201 : 200).json(r.data);
 });
 router8.delete("/github/repos/:owner/:repo/contents/*filePath", requireToken, async (req, res) => {
@@ -58268,12 +58294,12 @@ router8.delete("/github/repos/:owner/:repo/contents/*filePath", requireToken, as
     req.githubToken,
     { method: "DELETE", body: JSON.stringify(req.body) }
   );
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 router8.post("/github/repos/:owner/:repo/push-project", requireToken, async (req, res) => {
   const { files, branch = "main", commitMessage = "Push from CloudIDE" } = req.body;
-  if (!Array.isArray(files)) return res.status(400).json({ error: "files array required" });
+  if (!Array.isArray(files)) return void res.status(400).json({ error: "files array required" });
   const results = [];
   for (const file2 of files) {
     const existing = await ghFetch(
@@ -58298,7 +58324,7 @@ router8.post("/github/repos/:owner/:repo/push-project", requireToken, async (req
 });
 router8.get("/github/repos/:owner/:repo/releases", requireToken, async (req, res) => {
   const r = await ghFetch(`/repos/${req.params.owner}/${req.params.repo}/releases?per_page=20`, req.githubToken);
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 router8.post("/github/repos/:owner/:repo/releases", requireToken, async (req, res) => {
@@ -58306,7 +58332,7 @@ router8.post("/github/repos/:owner/:repo/releases", requireToken, async (req, re
     method: "POST",
     body: JSON.stringify(req.body)
   });
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.status(201).json(r.data);
 });
 router8.get("/github/repos/:owner/:repo/git/trees/:tree_sha", requireToken, async (req, res) => {
@@ -58316,27 +58342,27 @@ router8.get("/github/repos/:owner/:repo/git/trees/:tree_sha", requireToken, asyn
     `/repos/${req.params.owner}/${req.params.repo}/git/trees/${req.params.tree_sha}${qs}`,
     req.githubToken
   );
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 router8.get("/github/repos/:owner/:repo/actions/workflows", requireToken, async (req, res) => {
   const r = await ghFetch(`/repos/${req.params.owner}/${req.params.repo}/actions/workflows`, req.githubToken);
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 router8.get("/github/repos/:owner/:repo/actions/runs", requireToken, async (req, res) => {
   const r = await ghFetch(`/repos/${req.params.owner}/${req.params.repo}/actions/runs?per_page=20`, req.githubToken);
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 router8.get("/github/notifications", requireToken, async (req, res) => {
   const r = await ghFetch("/notifications?per_page=30", req.githubToken);
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 router8.get("/github/gists", requireToken, async (req, res) => {
   const r = await ghFetch("/gists?per_page=30", req.githubToken);
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 router8.post("/github/gists", requireToken, async (req, res) => {
@@ -58344,40 +58370,40 @@ router8.post("/github/gists", requireToken, async (req, res) => {
     method: "POST",
     body: JSON.stringify(req.body)
   });
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.status(201).json(r.data);
 });
 router8.get("/github/search/repositories", requireToken, async (req, res) => {
   const { q, sort = "stars", order = "desc", per_page = 20 } = req.query;
-  if (!q) return res.status(400).json({ error: "q required" });
+  if (!q) return void res.status(400).json({ error: "q required" });
   const qs = new URLSearchParams({ q: String(q), sort: String(sort), order: String(order), per_page: String(per_page) });
   const r = await ghFetch(`/search/repositories?${qs}`, req.githubToken);
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 router8.get("/github/search/users", requireToken, async (req, res) => {
   const { q, per_page = 20 } = req.query;
-  if (!q) return res.status(400).json({ error: "q required" });
+  if (!q) return void res.status(400).json({ error: "q required" });
   const qs = new URLSearchParams({ q: String(q), per_page: String(per_page) });
   const r = await ghFetch(`/search/users?${qs}`, req.githubToken);
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 router8.get("/github/search/code", requireToken, async (req, res) => {
   const { q, per_page = 20 } = req.query;
-  if (!q) return res.status(400).json({ error: "q required" });
+  if (!q) return void res.status(400).json({ error: "q required" });
   const qs = new URLSearchParams({ q: String(q), per_page: String(per_page) });
   const r = await ghFetch(`/search/code?${qs}`, req.githubToken);
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 router8.get("/github/search/issues", requireToken, async (req, res) => {
   const { q, per_page = 20, state = "" } = req.query;
-  if (!q) return res.status(400).json({ error: "q required" });
+  if (!q) return void res.status(400).json({ error: "q required" });
   const fullQ = state ? `${q} state:${state}` : String(q);
   const qs = new URLSearchParams({ q: fullQ, per_page: String(per_page) });
   const r = await ghFetch(`/search/issues?${qs}`, req.githubToken);
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 router8.get("/github/trending", requireToken, async (req, res) => {
@@ -58390,7 +58416,7 @@ router8.get("/github/trending", requireToken, async (req, res) => {
   const q = language ? `language:${language} created:>${dateStr}` : `created:>${dateStr}`;
   const qs = new URLSearchParams({ q, sort: "stars", order: "desc", per_page: "20" });
   const r = await ghFetch(`/search/repositories?${qs}`, req.githubToken);
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 router8.get("/github/status", (req, res) => {

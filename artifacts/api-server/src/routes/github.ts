@@ -33,7 +33,7 @@ async function ghFetch(
 }
 
 function notConnected(res: any) {
-  return res.status(401).json({
+  return void res.status(401).json({
     error: "GitHub not connected",
     message: "Please connect your GitHub account in Settings → GitHub.",
   });
@@ -42,7 +42,7 @@ function notConnected(res: any) {
 // ── Middleware to require token ───────────────────────────────────────────────
 function requireToken(req: any, res: any, next: any) {
   const token = getToken(req);
-  if (!token) return notConnected(res);
+  if (!token) return void notConnected(res);
   (req as any).githubToken = token;
   next();
 }
@@ -50,19 +50,19 @@ function requireToken(req: any, res: any, next: any) {
 // ── Profile ───────────────────────────────────────────────────────────────────
 router.get("/github/user", requireToken, async (req: any, res) => {
   const r = await ghFetch("/user", req.githubToken);
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 
 router.get("/github/user/orgs", requireToken, async (req: any, res) => {
   const r = await ghFetch("/user/orgs?per_page=100", req.githubToken);
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 
 router.get("/github/users/:username", requireToken, async (req: any, res) => {
   const r = await ghFetch(`/users/${req.params.username}`, req.githubToken);
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 
@@ -73,13 +73,13 @@ router.get("/github/repos", requireToken, async (req: any, res) => {
     `/user/repos?type=${type}&sort=${sort}&per_page=${per_page}&page=${page}`,
     req.githubToken
   );
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 
 router.get("/github/repos/starred", requireToken, async (req: any, res) => {
   const r = await ghFetch("/user/starred?per_page=50&sort=updated", req.githubToken);
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 
@@ -88,13 +88,13 @@ router.post("/github/repos", requireToken, async (req: any, res) => {
     method: "POST",
     body: JSON.stringify(req.body),
   });
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.status(201).json(r.data);
 });
 
 router.get("/github/repos/:owner/:repo", requireToken, async (req: any, res) => {
   const r = await ghFetch(`/repos/${req.params.owner}/${req.params.repo}`, req.githubToken);
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 
@@ -103,7 +103,7 @@ router.patch("/github/repos/:owner/:repo", requireToken, async (req: any, res) =
     method: "PATCH",
     body: JSON.stringify(req.body),
   });
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 
@@ -111,8 +111,8 @@ router.delete("/github/repos/:owner/:repo", requireToken, async (req: any, res) 
   const r = await ghFetch(`/repos/${req.params.owner}/${req.params.repo}`, req.githubToken, {
     method: "DELETE",
   });
-  if (r.status === 204) return res.status(204).end();
-  return res.status(r.status).json(r.data);
+  if (r.status === 204) return void res.status(204).end();
+  return void res.status(r.status).json(r.data);
 });
 
 // Star / Unstar
@@ -143,14 +143,14 @@ router.post("/github/repos/:owner/:repo/forks", requireToken, async (req: any, r
     method: "POST",
     body: JSON.stringify(req.body),
   });
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.status(202).json(r.data);
 });
 
 // ── Branches ──────────────────────────────────────────────────────────────────
 router.get("/github/repos/:owner/:repo/branches", requireToken, async (req: any, res) => {
   const r = await ghFetch(`/repos/${req.params.owner}/${req.params.repo}/branches?per_page=100`, req.githubToken);
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 
@@ -159,7 +159,7 @@ router.post("/github/repos/:owner/:repo/git/refs", requireToken, async (req: any
     method: "POST",
     body: JSON.stringify(req.body),
   });
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.status(201).json(r.data);
 });
 
@@ -170,8 +170,8 @@ router.delete("/github/repos/:owner/:repo/git/refs/*ref", requireToken, async (r
     req.githubToken,
     { method: "DELETE" }
   );
-  if (r.status === 204) return res.status(204).end();
-  return res.status(r.status).json(r.data);
+  if (r.status === 204) return void res.status(204).end();
+  return void res.status(r.status).json(r.data);
 });
 
 // Get latest SHA for a branch (used when creating new branch)
@@ -180,7 +180,7 @@ router.get("/github/repos/:owner/:repo/branches/:branch", requireToken, async (r
     `/repos/${req.params.owner}/${req.params.repo}/branches/${req.params.branch}`,
     req.githubToken
   );
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 
@@ -190,7 +190,7 @@ router.get("/github/repos/:owner/:repo/commits", requireToken, async (req: any, 
   const qs = new URLSearchParams({ per_page: String(per_page), page: String(page) });
   if (sha) qs.set("sha", sha as string);
   const r = await ghFetch(`/repos/${req.params.owner}/${req.params.repo}/commits?${qs}`, req.githubToken);
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 
@@ -199,7 +199,7 @@ router.get("/github/repos/:owner/:repo/commits/:sha", requireToken, async (req: 
     `/repos/${req.params.owner}/${req.params.repo}/commits/${req.params.sha}`,
     req.githubToken
   );
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 
@@ -210,7 +210,7 @@ router.get("/github/repos/:owner/:repo/issues", requireToken, async (req: any, r
   if (labels) qs.set("labels", labels as string);
   if (assignee) qs.set("assignee", assignee as string);
   const r = await ghFetch(`/repos/${req.params.owner}/${req.params.repo}/issues?${qs}`, req.githubToken);
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   // Filter out PRs (GitHub returns PRs in issues endpoint too)
   const issues = Array.isArray(r.data) ? r.data.filter((i: any) => !i.pull_request) : r.data;
   res.json(issues);
@@ -221,7 +221,7 @@ router.post("/github/repos/:owner/:repo/issues", requireToken, async (req: any, 
     method: "POST",
     body: JSON.stringify(req.body),
   });
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.status(201).json(r.data);
 });
 
@@ -231,7 +231,7 @@ router.patch("/github/repos/:owner/:repo/issues/:number", requireToken, async (r
     req.githubToken,
     { method: "PATCH", body: JSON.stringify(req.body) }
   );
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 
@@ -240,7 +240,7 @@ router.get("/github/repos/:owner/:repo/issues/:number/comments", requireToken, a
     `/repos/${req.params.owner}/${req.params.repo}/issues/${req.params.number}/comments`,
     req.githubToken
   );
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 
@@ -250,14 +250,14 @@ router.post("/github/repos/:owner/:repo/issues/:number/comments", requireToken, 
     req.githubToken,
     { method: "POST", body: JSON.stringify(req.body) }
   );
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.status(201).json(r.data);
 });
 
 // Labels
 router.get("/github/repos/:owner/:repo/labels", requireToken, async (req: any, res) => {
   const r = await ghFetch(`/repos/${req.params.owner}/${req.params.repo}/labels?per_page=100`, req.githubToken);
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 
@@ -266,7 +266,7 @@ router.get("/github/repos/:owner/:repo/pulls", requireToken, async (req: any, re
   const { state = "open", per_page = 30, page = 1 } = req.query;
   const qs = new URLSearchParams({ state: String(state), per_page: String(per_page), page: String(page) });
   const r = await ghFetch(`/repos/${req.params.owner}/${req.params.repo}/pulls?${qs}`, req.githubToken);
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 
@@ -275,7 +275,7 @@ router.post("/github/repos/:owner/:repo/pulls", requireToken, async (req: any, r
     method: "POST",
     body: JSON.stringify(req.body),
   });
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.status(201).json(r.data);
 });
 
@@ -284,7 +284,7 @@ router.get("/github/repos/:owner/:repo/pulls/:number", requireToken, async (req:
     `/repos/${req.params.owner}/${req.params.repo}/pulls/${req.params.number}`,
     req.githubToken
   );
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 
@@ -294,7 +294,7 @@ router.put("/github/repos/:owner/:repo/pulls/:number/merge", requireToken, async
     req.githubToken,
     { method: "PUT", body: JSON.stringify(req.body) }
   );
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 
@@ -304,7 +304,7 @@ router.patch("/github/repos/:owner/:repo/pulls/:number", requireToken, async (re
     req.githubToken,
     { method: "PATCH", body: JSON.stringify(req.body) }
   );
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 
@@ -314,7 +314,7 @@ router.get("/github/repos/:owner/:repo/pulls/:number/reviews", requireToken, asy
     `/repos/${req.params.owner}/${req.params.repo}/pulls/${req.params.number}/reviews`,
     req.githubToken
   );
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 
@@ -324,7 +324,7 @@ router.get("/github/repos/:owner/:repo/pulls/:number/files", requireToken, async
     `/repos/${req.params.owner}/${req.params.repo}/pulls/${req.params.number}/files`,
     req.githubToken
   );
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 
@@ -333,7 +333,7 @@ router.get("/github/repos/:owner/:repo/contents", requireToken, async (req: any,
   const { ref = "" } = req.query;
   const qs = ref ? `?ref=${ref}` : "";
   const r = await ghFetch(`/repos/${req.params.owner}/${req.params.repo}/contents/${qs}`, req.githubToken);
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 
@@ -345,7 +345,7 @@ router.get("/github/repos/:owner/:repo/contents/*filePath", requireToken, async 
     `/repos/${req.params.owner}/${req.params.repo}/contents/${filePath}${qs}`,
     req.githubToken
   );
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 
@@ -357,7 +357,7 @@ router.put("/github/repos/:owner/:repo/contents/*filePath", requireToken, async 
     req.githubToken,
     { method: "PUT", body: JSON.stringify(req.body) }
   );
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.status(r.status === 201 ? 201 : 200).json(r.data);
 });
 
@@ -369,7 +369,7 @@ router.delete("/github/repos/:owner/:repo/contents/*filePath", requireToken, asy
     req.githubToken,
     { method: "DELETE", body: JSON.stringify(req.body) }
   );
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 
@@ -381,7 +381,7 @@ router.post("/github/repos/:owner/:repo/push-project", requireToken, async (req:
     branch?: string;
     commitMessage?: string;
   };
-  if (!Array.isArray(files)) return res.status(400).json({ error: "files array required" });
+  if (!Array.isArray(files)) return void res.status(400).json({ error: "files array required" });
 
   const results: Array<{ name: string; status: string; error?: string }> = [];
 
@@ -414,7 +414,7 @@ router.post("/github/repos/:owner/:repo/push-project", requireToken, async (req:
 // ── Releases ──────────────────────────────────────────────────────────────────
 router.get("/github/repos/:owner/:repo/releases", requireToken, async (req: any, res) => {
   const r = await ghFetch(`/repos/${req.params.owner}/${req.params.repo}/releases?per_page=20`, req.githubToken);
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 
@@ -423,7 +423,7 @@ router.post("/github/repos/:owner/:repo/releases", requireToken, async (req: any
     method: "POST",
     body: JSON.stringify(req.body),
   });
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.status(201).json(r.data);
 });
 
@@ -435,34 +435,34 @@ router.get("/github/repos/:owner/:repo/git/trees/:tree_sha", requireToken, async
     `/repos/${req.params.owner}/${req.params.repo}/git/trees/${req.params.tree_sha}${qs}`,
     req.githubToken
   );
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 
 // ── GitHub Actions / Workflows ────────────────────────────────────────────────
 router.get("/github/repos/:owner/:repo/actions/workflows", requireToken, async (req: any, res) => {
   const r = await ghFetch(`/repos/${req.params.owner}/${req.params.repo}/actions/workflows`, req.githubToken);
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 
 router.get("/github/repos/:owner/:repo/actions/runs", requireToken, async (req: any, res) => {
   const r = await ghFetch(`/repos/${req.params.owner}/${req.params.repo}/actions/runs?per_page=20`, req.githubToken);
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 
 // ── Notifications ─────────────────────────────────────────────────────────────
 router.get("/github/notifications", requireToken, async (req: any, res) => {
   const r = await ghFetch("/notifications?per_page=30", req.githubToken);
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 
 // ── Gists ─────────────────────────────────────────────────────────────────────
 router.get("/github/gists", requireToken, async (req: any, res) => {
   const r = await ghFetch("/gists?per_page=30", req.githubToken);
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 
@@ -471,45 +471,45 @@ router.post("/github/gists", requireToken, async (req: any, res) => {
     method: "POST",
     body: JSON.stringify(req.body),
   });
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.status(201).json(r.data);
 });
 
 // ── Search ────────────────────────────────────────────────────────────────────
 router.get("/github/search/repositories", requireToken, async (req: any, res) => {
   const { q, sort = "stars", order = "desc", per_page = 20 } = req.query;
-  if (!q) return res.status(400).json({ error: "q required" });
+  if (!q) return void res.status(400).json({ error: "q required" });
   const qs = new URLSearchParams({ q: String(q), sort: String(sort), order: String(order), per_page: String(per_page) });
   const r = await ghFetch(`/search/repositories?${qs}`, req.githubToken);
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 
 router.get("/github/search/users", requireToken, async (req: any, res) => {
   const { q, per_page = 20 } = req.query;
-  if (!q) return res.status(400).json({ error: "q required" });
+  if (!q) return void res.status(400).json({ error: "q required" });
   const qs = new URLSearchParams({ q: String(q), per_page: String(per_page) });
   const r = await ghFetch(`/search/users?${qs}`, req.githubToken);
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 
 router.get("/github/search/code", requireToken, async (req: any, res) => {
   const { q, per_page = 20 } = req.query;
-  if (!q) return res.status(400).json({ error: "q required" });
+  if (!q) return void res.status(400).json({ error: "q required" });
   const qs = new URLSearchParams({ q: String(q), per_page: String(per_page) });
   const r = await ghFetch(`/search/code?${qs}`, req.githubToken);
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 
 router.get("/github/search/issues", requireToken, async (req: any, res) => {
   const { q, per_page = 20, state = "" } = req.query;
-  if (!q) return res.status(400).json({ error: "q required" });
+  if (!q) return void res.status(400).json({ error: "q required" });
   const fullQ = state ? `${q} state:${state}` : String(q);
   const qs = new URLSearchParams({ q: fullQ, per_page: String(per_page) });
   const r = await ghFetch(`/search/issues?${qs}`, req.githubToken);
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 
@@ -524,7 +524,7 @@ router.get("/github/trending", requireToken, async (req: any, res) => {
   const q = language ? `language:${language} created:>${dateStr}` : `created:>${dateStr}`;
   const qs = new URLSearchParams({ q, sort: "stars", order: "desc", per_page: "20" });
   const r = await ghFetch(`/search/repositories?${qs}`, req.githubToken);
-  if (!r.ok) return res.status(r.status).json(r.data);
+  if (!r.ok) return void res.status(r.status).json(r.data);
   res.json(r.data);
 });
 

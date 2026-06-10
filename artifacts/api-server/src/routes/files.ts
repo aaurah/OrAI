@@ -16,7 +16,7 @@ const router = Router();
 
 router.get("/projects/:id/files", async (req, res) => {
   const parsed = ListFilesParams.safeParse({ id: Number(req.params.id) });
-  if (!parsed.success) return res.status(400).json({ error: "Invalid id" });
+  if (!parsed.success) return void res.status(400).json({ error: "Invalid id" });
   try {
     const files = await db.select().from(filesTable).where(eq(filesTable.projectId, parsed.data.id));
     // Deduplicate by name — keep the highest-id (newest) file for each name
@@ -34,7 +34,7 @@ router.get("/projects/:id/files", async (req, res) => {
 // Removes duplicate file names, keeping the newest (highest id) per name
 router.post("/projects/:id/files/dedup", async (req, res) => {
   const parsed = ListFilesParams.safeParse({ id: Number(req.params.id) });
-  if (!parsed.success) return res.status(400).json({ error: "Invalid id" });
+  if (!parsed.success) return void res.status(400).json({ error: "Invalid id" });
   try {
     const files = await db.select().from(filesTable).where(eq(filesTable.projectId, parsed.data.id));
     const toDelete: number[] = [];
@@ -61,9 +61,9 @@ router.post("/projects/:id/files/dedup", async (req, res) => {
 
 router.post("/projects/:id/files", async (req, res) => {
   const paramsParsed = CreateFileParams.safeParse({ id: Number(req.params.id) });
-  if (!paramsParsed.success) return res.status(400).json({ error: "Invalid id" });
+  if (!paramsParsed.success) return void res.status(400).json({ error: "Invalid id" });
   const bodyParsed = CreateFileBody.safeParse(req.body);
-  if (!bodyParsed.success) return res.status(400).json({ error: bodyParsed.error.message });
+  if (!bodyParsed.success) return void res.status(400).json({ error: bodyParsed.error.message });
   try {
     const [file] = await db.insert(filesTable).values({
       projectId: paramsParsed.data.id,
@@ -81,12 +81,12 @@ router.post("/projects/:id/files", async (req, res) => {
 
 router.get("/projects/:id/files/:fileId", async (req, res) => {
   const parsed = GetFileParams.safeParse({ id: Number(req.params.id), fileId: Number(req.params.fileId) });
-  if (!parsed.success) return res.status(400).json({ error: "Invalid params" });
+  if (!parsed.success) return void res.status(400).json({ error: "Invalid params" });
   try {
     const [file] = await db.select().from(filesTable).where(
       and(eq(filesTable.id, parsed.data.fileId), eq(filesTable.projectId, parsed.data.id))
     );
-    if (!file) return res.status(404).json({ error: "Not found" });
+    if (!file) return void res.status(404).json({ error: "Not found" });
     res.json(serializeFile(file));
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch file" });
@@ -95,9 +95,9 @@ router.get("/projects/:id/files/:fileId", async (req, res) => {
 
 router.patch("/projects/:id/files/:fileId", async (req, res) => {
   const paramsParsed = UpdateFileParams.safeParse({ id: Number(req.params.id), fileId: Number(req.params.fileId) });
-  if (!paramsParsed.success) return res.status(400).json({ error: "Invalid params" });
+  if (!paramsParsed.success) return void res.status(400).json({ error: "Invalid params" });
   const bodyParsed = UpdateFileBody.safeParse(req.body);
-  if (!bodyParsed.success) return res.status(400).json({ error: bodyParsed.error.message });
+  if (!bodyParsed.success) return void res.status(400).json({ error: bodyParsed.error.message });
   try {
     const updateData: Record<string, unknown> = { updatedAt: new Date() };
     if (bodyParsed.data.content !== undefined) updateData.content = bodyParsed.data.content;
@@ -108,7 +108,7 @@ router.patch("/projects/:id/files/:fileId", async (req, res) => {
       .set(updateData)
       .where(and(eq(filesTable.id, paramsParsed.data.fileId), eq(filesTable.projectId, paramsParsed.data.id)))
       .returning();
-    if (!updated) return res.status(404).json({ error: "Not found" });
+    if (!updated) return void res.status(404).json({ error: "Not found" });
     res.json(serializeFile(updated));
   } catch (err) {
     res.status(500).json({ error: "Failed to update file" });
@@ -117,7 +117,7 @@ router.patch("/projects/:id/files/:fileId", async (req, res) => {
 
 router.delete("/projects/:id/files/:fileId", async (req, res) => {
   const parsed = DeleteFileParams.safeParse({ id: Number(req.params.id), fileId: Number(req.params.fileId) });
-  if (!parsed.success) return res.status(400).json({ error: "Invalid params" });
+  if (!parsed.success) return void res.status(400).json({ error: "Invalid params" });
   try {
     await db.delete(filesTable).where(
       and(eq(filesTable.id, parsed.data.fileId), eq(filesTable.projectId, parsed.data.id))

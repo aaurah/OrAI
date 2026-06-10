@@ -15,7 +15,7 @@ const router = Router();
 
 router.get("/deployments/:id/dns", async (req, res) => {
   const parsed = ListDnsRecordsParams.safeParse({ id: Number(req.params.id) });
-  if (!parsed.success) return res.status(400).json({ error: "Invalid id" });
+  if (!parsed.success) return void res.status(400).json({ error: "Invalid id" });
   try {
     const records = await db.select().from(dnsRecordsTable).where(eq(dnsRecordsTable.deploymentId, parsed.data.id));
     res.json(records.map(serializeDns));
@@ -26,9 +26,9 @@ router.get("/deployments/:id/dns", async (req, res) => {
 
 router.post("/deployments/:id/dns", async (req, res) => {
   const paramsParsed = CreateDnsRecordParams.safeParse({ id: Number(req.params.id) });
-  if (!paramsParsed.success) return res.status(400).json({ error: "Invalid id" });
+  if (!paramsParsed.success) return void res.status(400).json({ error: "Invalid id" });
   const bodyParsed = CreateDnsRecordBody.safeParse(req.body);
-  if (!bodyParsed.success) return res.status(400).json({ error: bodyParsed.error.message });
+  if (!bodyParsed.success) return void res.status(400).json({ error: bodyParsed.error.message });
   try {
     const [record] = await db.insert(dnsRecordsTable).values({
       deploymentId: paramsParsed.data.id,
@@ -46,9 +46,9 @@ router.post("/deployments/:id/dns", async (req, res) => {
 
 router.patch("/deployments/:id/dns/:recordId", async (req, res) => {
   const paramsParsed = UpdateDnsRecordParams.safeParse({ id: Number(req.params.id), recordId: Number(req.params.recordId) });
-  if (!paramsParsed.success) return res.status(400).json({ error: "Invalid params" });
+  if (!paramsParsed.success) return void res.status(400).json({ error: "Invalid params" });
   const bodyParsed = UpdateDnsRecordBody.safeParse(req.body);
-  if (!bodyParsed.success) return res.status(400).json({ error: bodyParsed.error.message });
+  if (!bodyParsed.success) return void res.status(400).json({ error: bodyParsed.error.message });
   try {
     const updateData: Record<string, unknown> = { updatedAt: new Date() };
     if (bodyParsed.data.type !== undefined) updateData.type = bodyParsed.data.type;
@@ -62,7 +62,7 @@ router.patch("/deployments/:id/dns/:recordId", async (req, res) => {
       .set(updateData)
       .where(and(eq(dnsRecordsTable.id, paramsParsed.data.recordId), eq(dnsRecordsTable.deploymentId, paramsParsed.data.id)))
       .returning();
-    if (!updated) return res.status(404).json({ error: "Not found" });
+    if (!updated) return void res.status(404).json({ error: "Not found" });
     res.json(serializeDns(updated));
   } catch (err) {
     res.status(500).json({ error: "Failed to update DNS record" });
@@ -71,7 +71,7 @@ router.patch("/deployments/:id/dns/:recordId", async (req, res) => {
 
 router.delete("/deployments/:id/dns/:recordId", async (req, res) => {
   const parsed = DeleteDnsRecordParams.safeParse({ id: Number(req.params.id), recordId: Number(req.params.recordId) });
-  if (!parsed.success) return res.status(400).json({ error: "Invalid params" });
+  if (!parsed.success) return void res.status(400).json({ error: "Invalid params" });
   try {
     await db.delete(dnsRecordsTable).where(
       and(eq(dnsRecordsTable.id, parsed.data.recordId), eq(dnsRecordsTable.deploymentId, parsed.data.id))
@@ -84,13 +84,13 @@ router.delete("/deployments/:id/dns/:recordId", async (req, res) => {
 
 router.post("/deployments/:id/verify-domain", async (req, res) => {
   const id = Number(req.params.id);
-  if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
+  if (isNaN(id)) return void res.status(400).json({ error: "Invalid id" });
   try {
     const [deployment] = await db.select().from(deploymentsTable).where(eq(deploymentsTable.id, id));
-    if (!deployment) return res.status(404).json({ error: "Not found" });
+    if (!deployment) return void res.status(404).json({ error: "Not found" });
 
     if (!deployment.customDomain) {
-      return res.json({ verified: false, domain: null, message: "No custom domain configured." });
+      return void res.json({ verified: false, domain: null, message: "No custom domain configured." });
     }
 
     const previewHost = deployment.url ? (() => {
@@ -113,10 +113,10 @@ router.post("/deployments/:id/verify-domain", async (req, res) => {
     }
 
     if (hasValidCname) {
-      return res.json({ verified: true, domain: deployment.customDomain, message: "Domain is verified and pointing to this deployment." });
+      return void res.json({ verified: true, domain: deployment.customDomain, message: "Domain is verified and pointing to this deployment." });
     }
 
-    return res.json({
+    return void res.json({
       verified: false,
       domain: deployment.customDomain,
       message: previewHost

@@ -339,7 +339,7 @@ export default function IDE() {
   const [MonacoEditor, setMonacoEditor]     = useState<any>(null);
 
   const { data: selectedFile } = useGetFile(projectId, selectedFileId ?? 0, {
-    query: { enabled: !!selectedFileId },
+    query: { enabled: !!selectedFileId, queryKey: [] },
   });
 
   const updateFile       = useUpdateFile();
@@ -526,12 +526,11 @@ export default function IDE() {
   useEffect(() => {
     const key = `ide_autostart_${projectId}`;
     const prompt = localStorage.getItem(key);
-    if (prompt) {
-      localStorage.removeItem(key);
-      // Small delay so the IDE is fully mounted
-      const timer = setTimeout(() => sendAiMessage(prompt), 800);
-      return () => clearTimeout(timer);
-    }
+    if (!prompt) return;
+    localStorage.removeItem(key);
+    // Small delay so the IDE is fully mounted
+    const timer = setTimeout(() => sendAiMessage(prompt), 800);
+    return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 

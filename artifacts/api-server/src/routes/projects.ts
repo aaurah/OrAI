@@ -61,7 +61,7 @@ router.get("/projects", async (_req, res) => {
 router.post("/projects", async (req, res) => {
   const parsed = CreateProjectBody.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ error: parsed.error.message });
+    return void res.status(400).json({ error: parsed.error.message });
   }
   try {
     const [project] = await db.insert(projectsTable).values({
@@ -81,10 +81,10 @@ router.post("/projects", async (req, res) => {
 
 router.get("/projects/:id", async (req, res) => {
   const parsed = GetProjectParams.safeParse({ id: Number(req.params.id) });
-  if (!parsed.success) return res.status(400).json({ error: "Invalid id" });
+  if (!parsed.success) return void res.status(400).json({ error: "Invalid id" });
   try {
     const [project] = await db.select().from(projectsTable).where(eq(projectsTable.id, parsed.data.id));
-    if (!project) return res.status(404).json({ error: "Not found" });
+    if (!project) return void res.status(404).json({ error: "Not found" });
     res.json(serializeProject(project));
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch project" });
@@ -93,16 +93,16 @@ router.get("/projects/:id", async (req, res) => {
 
 router.patch("/projects/:id", async (req, res) => {
   const paramsParsed = UpdateProjectParams.safeParse({ id: Number(req.params.id) });
-  if (!paramsParsed.success) return res.status(400).json({ error: "Invalid id" });
+  if (!paramsParsed.success) return void res.status(400).json({ error: "Invalid id" });
   const bodyParsed = UpdateProjectBody.safeParse(req.body);
-  if (!bodyParsed.success) return res.status(400).json({ error: bodyParsed.error.message });
+  if (!bodyParsed.success) return void res.status(400).json({ error: bodyParsed.error.message });
   try {
     const [updated] = await db
       .update(projectsTable)
       .set({ ...bodyParsed.data, updatedAt: new Date() })
       .where(eq(projectsTable.id, paramsParsed.data.id))
       .returning();
-    if (!updated) return res.status(404).json({ error: "Not found" });
+    if (!updated) return void res.status(404).json({ error: "Not found" });
     res.json(serializeProject(updated));
   } catch (err) {
     res.status(500).json({ error: "Failed to update project" });
@@ -111,7 +111,7 @@ router.patch("/projects/:id", async (req, res) => {
 
 router.delete("/projects/:id", async (req, res) => {
   const parsed = DeleteProjectParams.safeParse({ id: Number(req.params.id) });
-  if (!parsed.success) return res.status(400).json({ error: "Invalid id" });
+  if (!parsed.success) return void res.status(400).json({ error: "Invalid id" });
   try {
     await db.delete(projectsTable).where(eq(projectsTable.id, parsed.data.id));
     res.status(204).send();
@@ -374,7 +374,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-seri
 router.get("/projects/:id/preview/*filename", async (req, res) => {
   try {
     const projectId = Number(req.params.id);
-    const filename = req.params.filename as string;
+    const rawFilename = req.params.filename;
+    const filename = Array.isArray(rawFilename) ? rawFilename.join("/") : rawFilename;
     const ext = filename.split(".").pop()?.toLowerCase() ?? "";
 
     const [file] = await db

@@ -821,6 +821,8 @@ components:
           type: ["string", "null"]
         currentFile:
           type: ["string", "null"]
+        imageUrl:
+          type: ["string", "null"]
       required:
         - message
 

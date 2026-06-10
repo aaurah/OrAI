@@ -444,7 +444,8 @@ export const AiChatParams = zod.object({
 export const AiChatBody = zod.object({
   "message": zod.string().min(1),
   "context": zod.string().nullish(),
-  "currentFile": zod.string().nullish()
+  "currentFile": zod.string().nullish(),
+  "imageUrl": zod.string().nullish()
 })
 
 export const AiChatResponse = zod.object({

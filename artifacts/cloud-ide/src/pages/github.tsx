@@ -369,7 +369,7 @@ export default function GitHubPage() {
   async function createBranch() {
     if (!selectedRepo || !newBranch.name || !newBranch.from) return;
     const fromBranch = await ghApi(`${API}/repos/${selectedRepo.owner.login}/${selectedRepo.name}/branches/${newBranch.from}`);
-    if (!fromBranch?.commit?.sha) return toast({ title: "Cannot find source branch SHA", variant: "destructive" });
+    if (!fromBranch?.commit?.sha) return void toast({ title: "Cannot find source branch SHA", variant: "destructive" });
     const d = await ghApi(`${API}/repos/${selectedRepo.owner.login}/${selectedRepo.name}/git/refs`, {
       method: "POST",
       body: JSON.stringify({ ref: `refs/heads/${newBranch.name}`, sha: fromBranch.commit.sha }),

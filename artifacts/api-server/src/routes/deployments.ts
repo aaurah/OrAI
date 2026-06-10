@@ -42,7 +42,7 @@ router.get("/deployments", async (_req, res) => {
 
 router.get("/deployments/:id", async (req, res) => {
   const parsed = GetDeploymentParams.safeParse({ id: Number(req.params.id) });
-  if (!parsed.success) return res.status(400).json({ error: "Invalid id" });
+  if (!parsed.success) return void res.status(400).json({ error: "Invalid id" });
   try {
     const rows = await db
       .select({
@@ -62,7 +62,7 @@ router.get("/deployments/:id", async (req, res) => {
       .leftJoin(projectsTable, eq(deploymentsTable.projectId, projectsTable.id))
       .where(eq(deploymentsTable.id, parsed.data.id));
 
-    if (!rows[0]) return res.status(404).json({ error: "Not found" });
+    if (!rows[0]) return void res.status(404).json({ error: "Not found" });
     res.json(serializeDeployment(rows[0]));
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch deployment" });
@@ -71,7 +71,7 @@ router.get("/deployments/:id", async (req, res) => {
 
 router.get("/projects/:id/deployments", async (req, res) => {
   const parsed = ListDeploymentsParams.safeParse({ id: Number(req.params.id) });
-  if (!parsed.success) return res.status(400).json({ error: "Invalid id" });
+  if (!parsed.success) return void res.status(400).json({ error: "Invalid id" });
   try {
     const deployments = await db
       .select()
@@ -86,9 +86,9 @@ router.get("/projects/:id/deployments", async (req, res) => {
 
 router.post("/projects/:id/deployments", async (req, res) => {
   const paramsParsed = CreateDeploymentParams.safeParse({ id: Number(req.params.id) });
-  if (!paramsParsed.success) return res.status(400).json({ error: "Invalid id" });
+  if (!paramsParsed.success) return void res.status(400).json({ error: "Invalid id" });
   const bodyParsed = CreateDeploymentBody.safeParse(req.body);
-  if (!bodyParsed.success) return res.status(400).json({ error: bodyParsed.error.message });
+  if (!bodyParsed.success) return void res.status(400).json({ error: bodyParsed.error.message });
 
   try {
     const projectId = paramsParsed.data.id;
@@ -125,9 +125,9 @@ router.post("/projects/:id/deployments", async (req, res) => {
 
 router.patch("/deployments/:id", async (req, res) => {
   const paramsParsed = UpdateDeploymentParams.safeParse({ id: Number(req.params.id) });
-  if (!paramsParsed.success) return res.status(400).json({ error: "Invalid id" });
+  if (!paramsParsed.success) return void res.status(400).json({ error: "Invalid id" });
   const bodyParsed = UpdateDeploymentBody.safeParse(req.body);
-  if (!bodyParsed.success) return res.status(400).json({ error: bodyParsed.error.message });
+  if (!bodyParsed.success) return void res.status(400).json({ error: bodyParsed.error.message });
 
   try {
     const updateData: Record<string, unknown> = { updatedAt: new Date() };
@@ -140,7 +140,7 @@ router.patch("/deployments/:id", async (req, res) => {
       .set(updateData)
       .where(eq(deploymentsTable.id, paramsParsed.data.id))
       .returning();
-    if (!updated) return res.status(404).json({ error: "Not found" });
+    if (!updated) return void res.status(404).json({ error: "Not found" });
     res.json({ ...serializeDeployment(updated), projectName: null });
   } catch (err) {
     res.status(500).json({ error: "Failed to update deployment" });
@@ -149,7 +149,7 @@ router.patch("/deployments/:id", async (req, res) => {
 
 router.delete("/deployments/:id", async (req, res) => {
   const parsed = DeleteDeploymentParams.safeParse({ id: Number(req.params.id) });
-  if (!parsed.success) return res.status(400).json({ error: "Invalid id" });
+  if (!parsed.success) return void res.status(400).json({ error: "Invalid id" });
   try {
     await db.delete(deploymentsTable).where(eq(deploymentsTable.id, parsed.data.id));
     res.status(204).send();

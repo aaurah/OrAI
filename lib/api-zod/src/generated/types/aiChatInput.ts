@@ -13,4 +13,6 @@ export interface AiChatInput {
   context?: string | null;
   /** @nullable */
   currentFile?: string | null;
+  /** @nullable */
+  imageUrl?: string | null;
 }
