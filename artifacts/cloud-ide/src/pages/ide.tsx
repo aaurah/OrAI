@@ -45,6 +45,14 @@ type AiMessage = {
   imageUrl?: string;
 };
 
+type IDEFile = {
+  id: number;
+  name: string;
+  path: string;
+  type: string;
+  content?: string | null;
+};
+
 type MobileTab = "files" | "editor" | "ai" | "preview";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -58,6 +66,26 @@ const LANG_MAP: Record<string, string> = {
 function getLanguage(filename: string) {
   const ext = filename.split(".").pop()?.toLowerCase() ?? "";
   return LANG_MAP[ext] ?? "plaintext";
+}
+
+function isProjectMetadataFile(filename: string): boolean {
+  const normalized = filename.replace(/^\//, "").toLowerCase();
+  return new Set([
+    ".gitignore",
+    ".npmrc",
+    ".replit",
+    ".replitignore",
+    "components.json",
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    "pnpm-workspace.yaml",
+    "replit.md",
+    "tsconfig.json",
+    "tsconfig.base.json",
+    "vite.config.ts",
+    "vite.config.js",
+  ]).has(normalized);
 }
 
 // ── Simple markdown renderer ─────────────────────────────────────────────────
@@ -278,6 +306,8 @@ export default function IDE() {
   const { data: project } = useGetProject(projectId);
   const { data: allProjects } = useListProjects();
   const { data: files, isLoading: filesLoading } = useListFiles(projectId);
+  const projectFiles = (files ?? []) as IDEFile[];
+  const appFiles = projectFiles.filter((f) => !isProjectMetadataFile(f.name));
 
   const [selectedFileId, setSelectedFileId] = useState<number | null>(null);
   const [editorContent, setEditorContent]   = useState("");
@@ -325,11 +355,11 @@ export default function IDE() {
 
   // Auto-select first file
   useEffect(() => {
-    if (files && files.length > 0 && !selectedFileId) {
-      const first = files.find(f => f.type === "file");
+    if (projectFiles.length > 0 && !selectedFileId) {
+      const first = projectFiles.find((f) => f.type === "file" && !isProjectMetadataFile(f.name));
       if (first) setSelectedFileId(first.id);
     }
-  }, [files]);
+  }, [files, selectedFileId]);
 
   // Sync editor when file changes
   useEffect(() => {
@@ -457,8 +487,8 @@ export default function IDE() {
       id: projectId,
       data: {
         message: finalMsg,
-        context: selectedFile?.content ?? null,
-        currentFile: selectedFile?.name ?? null,
+        context: null,
+        currentFile: selectedFile && !isProjectMetadataFile(selectedFile.name) ? selectedFile.name ?? null : null,
         imageUrl: imgUrl ?? null,
       } as any,
     }, {
@@ -621,13 +651,13 @@ export default function IDE() {
             <div>
               <p className="font-semibold text-foreground text-sm">AI Coding Agent</p>
               <p className="opacity-60 mt-0.5">
-                {files && files.length > 0
-                  ? `I can see ${files.length} file${files.length !== 1 ? "s" : ""} in your project. What would you like to do?`
+                {appFiles.length > 0
+                  ? `I can see ${appFiles.length} app file${appFiles.length !== 1 ? "s" : ""} in your project. What would you like to do?`
                   : "I can build complete web apps for you. Try one of these:"}
               </p>
             </div>
             <div className="space-y-1 text-left">
-              {(files && files.length > 0
+              {(appFiles.length > 0
                 ? [
                     "Add a search bar",
                     "Add dark mode toggle",
@@ -698,10 +728,10 @@ export default function IDE() {
 
       {/* Input */}
       <div className="p-2 border-t border-border shrink-0">
-        {selectedFile && (
+        {appFiles.length > 0 && (
           <div className="flex items-center gap-1 mb-1.5 text-[10px] text-muted-foreground px-0.5">
-            <FileIcon size={9} />
-            <span className="truncate">Using <span className="text-foreground font-medium">{selectedFile.name}</span> as context</span>
+            <FolderOpen size={9} />
+            <span className="truncate">Using <span className="text-foreground font-medium">{appFiles.length} project file{appFiles.length !== 1 ? "s" : ""}</span> as context</span>
           </div>
         )}
         {attachedImage && (
