@@ -56981,12 +56981,15 @@ var dns_default = router5;
 // src/routes/ai.ts
 var import_express6 = __toESM(require_express2(), 1);
 var router6 = (0, import_express6.Router)();
-var HAS_OPENROUTER_KEY = Boolean(
-  process.env.OPENROUTER_OPENCODE_BASE_URL || process.env.OPENROUTER_API_KEY || process.env.VITE_OPENROUTER_API_KEY
-);
-var AI_BASE = process.env.OPENROUTER_OPENCODE_BASE_URL || process.env.OPENAI_API_BASE_URL || (HAS_OPENROUTER_KEY ? "https://openrouter.ai/api/v1" : "https://api.openai.com/v1");
-var AI_KEY = process.env.API_KEY || process.env.OPENROUTER_API_KEY || process.env.VITE_OPENROUTER_API_KEY || process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY || "";
-var AI_MODEL = HAS_OPENROUTER_KEY ? process.env.AI_MODEL || "openai/gpt-4o-mini" : process.env.AI_MODEL || "gpt-4o-mini";
+function getAiConfig() {
+  const hasOpenRouterKey = Boolean(
+    process.env.OPENROUTER_OPENCODE_BASE_URL || process.env.OPENROUTER_API_KEY || process.env.VITE_OPENROUTER_API_KEY
+  );
+  const aiBase = process.env.OPENROUTER_OPENCODE_BASE_URL || process.env.OPENAI_API_BASE_URL || (hasOpenRouterKey ? "https://openrouter.ai/api/v1" : "https://api.openai.com/v1");
+  const aiKey = process.env.API_KEY || process.env.OPENROUTER_API_KEY || process.env.VITE_OPENROUTER_API_KEY || process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY || "";
+  const aiModel = hasOpenRouterKey ? process.env.AI_MODEL || "openai/gpt-4o-mini" : process.env.AI_MODEL || "gpt-4o-mini";
+  return { aiBase, aiKey, aiModel };
+}
 router6.post("/projects/:id/ai/chat", async (req, res) => {
   try {
     const paramsParsed = AiChatParams.safeParse({ id: Number(req.params.id) });
@@ -57069,12 +57072,13 @@ Rules:
 - reply should be concise (1-3 sentences) describing what you did.
 - ALWAYS return valid JSON. No trailing commas. No comments inside JSON.`;
     let aiResult;
-    console.log(`[AI Chat] Project: ${projectId}, Message: "${message}", Files: ${existingFiles.length}, Source files: ${sourceFiles.length}, AI Key: ${AI_KEY ? "\u2713" : "\u2717"}`);
-    if (!AI_KEY) {
+    const { aiBase, aiKey, aiModel } = getAiConfig();
+    console.log(`[AI Chat] Project: ${projectId}, Message: "${message}", Files: ${existingFiles.length}, Source files: ${sourceFiles.length}, AI Key: ${aiKey ? "\u2713" : "\u2717"}`);
+    if (!aiKey) {
       console.warn("[AI Chat] No AI API key - using fallback with file creation");
       aiResult = generateAgenticFallbackWithBuilds(message, sourceFiles, currentFile ?? null);
     } else {
-      aiResult = await callOpenAI(systemPrompt, message, imageUrl ?? void 0, sourceFiles, currentFile ?? null);
+      aiResult = await callOpenAI(systemPrompt, message, imageUrl ?? void 0, sourceFiles, currentFile ?? null, { aiBase, aiKey, aiModel });
     }
     const executedActions = [];
     await db.transaction(async (tx) => {
@@ -57225,21 +57229,22 @@ ${clipped}
   }
   return chunks.join("\n");
 }
-async function callOpenAI(systemPrompt, message, imageUrl, existingFiles, currentFile) {
+async function callOpenAI(systemPrompt, message, imageUrl, existingFiles, currentFile, config2) {
+  const { aiBase, aiKey, aiModel } = config2;
   try {
-    console.log(`[AI Provider] Calling ${AI_BASE}/chat/completions with ${AI_MODEL}`);
+    console.log(`[AI Provider] Calling ${aiBase}/chat/completions with ${aiModel}`);
     const headers = {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${AI_KEY}`
+      Authorization: `Bearer ${aiKey}`
     };
     if (process.env.VITE_APP_ID) {
       headers["x-boxman-app-id"] = process.env.VITE_APP_ID;
     }
-    const response = await fetch(`${AI_BASE}/chat/completions`, {
+    const response = await fetch(`${aiBase}/chat/completions`, {
       method: "POST",
       headers,
       body: JSON.stringify({
-        model: AI_MODEL,
+        model: aiModel,
         messages: [
           { role: "system", content: systemPrompt },
           {

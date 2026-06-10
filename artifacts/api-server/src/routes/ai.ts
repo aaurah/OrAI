@@ -6,21 +6,24 @@ import { AiChatParams, AiChatBody } from "@workspace/api-zod";
 
 const router = Router();
 
-const HAS_OPENROUTER_KEY = Boolean(
-  process.env.OPENROUTER_OPENCODE_BASE_URL || process.env.OPENROUTER_API_KEY || process.env.VITE_OPENROUTER_API_KEY,
-);
-const AI_BASE = process.env.OPENROUTER_OPENCODE_BASE_URL
-  || process.env.OPENAI_API_BASE_URL
-  || (HAS_OPENROUTER_KEY ? "https://openrouter.ai/api/v1" : "https://api.openai.com/v1");
-const AI_KEY = process.env.API_KEY
-  || process.env.OPENROUTER_API_KEY
-  || process.env.VITE_OPENROUTER_API_KEY
-  || process.env.OPENAI_API_KEY
-  || process.env.VITE_OPENAI_API_KEY
-  || "";
-const AI_MODEL = HAS_OPENROUTER_KEY
-  ? (process.env.AI_MODEL || "openai/gpt-4o-mini")
-  : (process.env.AI_MODEL || "gpt-4o-mini");
+function getAiConfig() {
+  const hasOpenRouterKey = Boolean(
+    process.env.OPENROUTER_OPENCODE_BASE_URL || process.env.OPENROUTER_API_KEY || process.env.VITE_OPENROUTER_API_KEY,
+  );
+  const aiBase = process.env.OPENROUTER_OPENCODE_BASE_URL
+    || process.env.OPENAI_API_BASE_URL
+    || (hasOpenRouterKey ? "https://openrouter.ai/api/v1" : "https://api.openai.com/v1");
+  const aiKey = process.env.API_KEY
+    || process.env.OPENROUTER_API_KEY
+    || process.env.VITE_OPENROUTER_API_KEY
+    || process.env.OPENAI_API_KEY
+    || process.env.VITE_OPENAI_API_KEY
+    || "";
+  const aiModel = hasOpenRouterKey
+    ? (process.env.AI_MODEL || "openai/gpt-4o-mini")
+    : (process.env.AI_MODEL || "gpt-4o-mini");
+  return { aiBase, aiKey, aiModel };
+}
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -144,14 +147,16 @@ Rules:
 
     let aiResult: AIResult;
 
-    // Log the request for debugging
-    console.log(`[AI Chat] Project: ${projectId}, Message: "${message}", Files: ${existingFiles.length}, Source files: ${sourceFiles.length}, AI Key: ${AI_KEY ? "✓" : "✗"}`);
+    const { aiBase, aiKey, aiModel } = getAiConfig();
 
-    if (!AI_KEY) {
+    // Log the request for debugging
+    console.log(`[AI Chat] Project: ${projectId}, Message: "${message}", Files: ${existingFiles.length}, Source files: ${sourceFiles.length}, AI Key: ${aiKey ? "✓" : "✗"}`);
+
+    if (!aiKey) {
       console.warn("[AI Chat] No AI API key - using fallback with file creation");
       aiResult = generateAgenticFallbackWithBuilds(message, sourceFiles, currentFile ?? null);
     } else {
-      aiResult = await callOpenAI(systemPrompt, message, imageUrl ?? undefined, sourceFiles, currentFile ?? null);
+      aiResult = await callOpenAI(systemPrompt, message, imageUrl ?? undefined, sourceFiles, currentFile ?? null, { aiBase, aiKey, aiModel });
     }
 
     // ── Execute actions ──────────────────────────────────────────────────────
@@ -342,24 +347,26 @@ async function callOpenAI(
   imageUrl: string | undefined,
   existingFiles: Array<{ id: number; name: string; content?: string | null }>,
   currentFile: string | null,
+  config: { aiBase: string; aiKey: string; aiModel: string },
 ): Promise<AIResult> {
+  const { aiBase, aiKey, aiModel } = config;
   try {
-    console.log(`[AI Provider] Calling ${AI_BASE}/chat/completions with ${AI_MODEL}`);
+    console.log(`[AI Provider] Calling ${aiBase}/chat/completions with ${aiModel}`);
 
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${AI_KEY}`,
+      Authorization: `Bearer ${aiKey}`,
     };
 
     if (process.env.VITE_APP_ID) {
       headers["x-boxman-app-id"] = process.env.VITE_APP_ID;
     }
 
-    const response = await fetch(`${AI_BASE}/chat/completions`, {
+    const response = await fetch(`${aiBase}/chat/completions`, {
       method: "POST",
       headers,
       body: JSON.stringify({
-        model: AI_MODEL,
+        model: aiModel,
         messages: [
           { role: "system", content: systemPrompt },
           {
