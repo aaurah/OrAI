@@ -20,6 +20,7 @@ export * from './dnsRecordInputType';
 export * from './dnsRecordType';
 export * from './dnsRecordUpdate';
 export * from './dnsRecordUpdateType';
+export * from './domainVerifyResult';
 export * from './file';
 export * from './fileInput';
 export * from './fileInputType';

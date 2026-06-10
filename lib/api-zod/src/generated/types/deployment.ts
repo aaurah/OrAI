@@ -21,6 +21,7 @@ export interface Deployment {
   region?: string | null;
   /** @nullable */
   buildLog?: string | null;
+  domainVerified: boolean;
   createdAt: string;
   updatedAt: string;
 }

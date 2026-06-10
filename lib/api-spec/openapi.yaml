@@ -380,6 +380,25 @@ paths:
         "204":
           description: Deleted
 
+  /deployments/{id}/verify-domain:
+    post:
+      operationId: verifyDomain
+      tags: [deployments]
+      summary: Verify that the custom domain DNS is correctly configured
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Domain verification result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DomainVerifyResult"
+
   /deployments/{id}/dns:
     get:
       operationId: listDnsRecords
@@ -678,6 +697,8 @@ components:
           type: ["string", "null"]
         buildLog:
           type: ["string", "null"]
+        domainVerified:
+          type: boolean
         createdAt:
           type: string
         updatedAt:
@@ -686,8 +707,22 @@ components:
         - id
         - projectId
         - status
+        - domainVerified
         - createdAt
         - updatedAt
+
+    DomainVerifyResult:
+      type: object
+      properties:
+        verified:
+          type: boolean
+        domain:
+          type: ["string", "null"]
+        message:
+          type: string
+      required:
+        - verified
+        - message
 
     DeploymentInput:
       type: object

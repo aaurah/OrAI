@@ -6,7 +6,7 @@ import {
   LayoutPanelLeft, Code2, Loader2, FolderOpen,
   FilePlus, FilePen, FileX, AlertCircle, Sparkles,
   Monitor, RefreshCw, Paperclip, ImageIcon,
-  ChevronRight, ChevronDown,
+  ChevronRight, ChevronDown, ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

@@ -28,6 +28,7 @@ import type {
   DnsRecord,
   DnsRecordInput,
   DnsRecordUpdate,
+  DomainVerifyResult,
   File,
   FileInput,
   FileUpdate,
@@ -1469,6 +1470,76 @@ export const useDeleteDeployment = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getDeleteDeploymentMutationOptions(options));
+    }
+
+export const getVerifyDomainUrl = (id: number,) => {
+
+
+
+
+  return `/api/deployments/${id}/verify-domain`
+}
+
+/**
+ * @summary Verify that the custom domain DNS is correctly configured
+ */
+export const verifyDomain = async (id: number, options?: RequestInit): Promise<DomainVerifyResult> => {
+
+  return customFetch<DomainVerifyResult>(getVerifyDomainUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getVerifyDomainMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof verifyDomain>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof verifyDomain>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['verifyDomain'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof verifyDomain>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  verifyDomain(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type VerifyDomainMutationResult = NonNullable<Awaited<ReturnType<typeof verifyDomain>>>
+
+    export type VerifyDomainMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Verify that the custom domain DNS is correctly configured
+ */
+export const useVerifyDomain = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof verifyDomain>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof verifyDomain>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getVerifyDomainMutationOptions(options));
     }
 
 export const getListDnsRecordsUrl = (id: number,) => {

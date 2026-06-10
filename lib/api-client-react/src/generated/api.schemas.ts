@@ -130,8 +130,16 @@ export interface Deployment {
   region?: string | null;
   /** @nullable */
   buildLog?: string | null;
+  domainVerified: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface DomainVerifyResult {
+  verified: boolean;
+  /** @nullable */
+  domain?: string | null;
+  message: string;
 }
 
 export interface DeploymentInput {

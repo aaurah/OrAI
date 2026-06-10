@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { dnsRecordsTable } from "@workspace/db";
+import { dnsRecordsTable, deploymentsTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import {
   ListDnsRecordsParams,
@@ -79,6 +79,52 @@ router.delete("/deployments/:id/dns/:recordId", async (req, res) => {
     res.status(204).send();
   } catch (err) {
     res.status(500).json({ error: "Failed to delete DNS record" });
+  }
+});
+
+router.post("/deployments/:id/verify-domain", async (req, res) => {
+  const id = Number(req.params.id);
+  if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
+  try {
+    const [deployment] = await db.select().from(deploymentsTable).where(eq(deploymentsTable.id, id));
+    if (!deployment) return res.status(404).json({ error: "Not found" });
+
+    if (!deployment.customDomain) {
+      return res.json({ verified: false, domain: null, message: "No custom domain configured." });
+    }
+
+    const previewHost = deployment.url ? (() => {
+      try { return new URL(deployment.url).hostname; } catch { return deployment.url; }
+    })() : null;
+
+    const cnameRecords = await db
+      .select()
+      .from(dnsRecordsTable)
+      .where(and(eq(dnsRecordsTable.deploymentId, id), eq(dnsRecordsTable.type, "CNAME")));
+
+    const hasValidCname = previewHost
+      ? cnameRecords.some(r => r.value === previewHost)
+      : cnameRecords.length > 0;
+
+    if (hasValidCname && !deployment.domainVerified) {
+      await db.update(deploymentsTable)
+        .set({ domainVerified: true, updatedAt: new Date() })
+        .where(eq(deploymentsTable.id, id));
+    }
+
+    if (hasValidCname) {
+      return res.json({ verified: true, domain: deployment.customDomain, message: "Domain is verified and pointing to this deployment." });
+    }
+
+    return res.json({
+      verified: false,
+      domain: deployment.customDomain,
+      message: previewHost
+        ? `Add a CNAME record pointing to ${previewHost} to verify ownership.`
+        : "Add the required DNS records and try again.",
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to verify domain" });
   }
 });
 

@@ -26,6 +26,7 @@ router.get("/deployments", async (_req, res) => {
         customDomain: deploymentsTable.customDomain,
         region: deploymentsTable.region,
         buildLog: deploymentsTable.buildLog,
+        domainVerified: deploymentsTable.domainVerified,
         createdAt: deploymentsTable.createdAt,
         updatedAt: deploymentsTable.updatedAt,
       })
@@ -53,6 +54,7 @@ router.get("/deployments/:id", async (req, res) => {
         customDomain: deploymentsTable.customDomain,
         region: deploymentsTable.region,
         buildLog: deploymentsTable.buildLog,
+        domainVerified: deploymentsTable.domainVerified,
         createdAt: deploymentsTable.createdAt,
         updatedAt: deploymentsTable.updatedAt,
       })
@@ -131,6 +133,7 @@ router.patch("/deployments/:id", async (req, res) => {
     const updateData: Record<string, unknown> = { updatedAt: new Date() };
     if (bodyParsed.data.customDomain !== undefined) updateData.customDomain = bodyParsed.data.customDomain;
     if (bodyParsed.data.status !== undefined) updateData.status = bodyParsed.data.status;
+    if ((bodyParsed.data as Record<string, unknown>).domainVerified !== undefined) updateData.domainVerified = (bodyParsed.data as Record<string, unknown>).domainVerified;
 
     const [updated] = await db
       .update(deploymentsTable)

@@ -242,6 +242,7 @@ export const ListDeploymentsResponseItem = zod.object({
   "customDomain": zod.string().nullish(),
   "region": zod.string().nullish(),
   "buildLog": zod.string().nullish(),
+  "domainVerified": zod.boolean(),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
 })
@@ -273,6 +274,7 @@ export const ListAllDeploymentsResponseItem = zod.object({
   "customDomain": zod.string().nullish(),
   "region": zod.string().nullish(),
   "buildLog": zod.string().nullish(),
+  "domainVerified": zod.boolean(),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
 })
@@ -295,6 +297,7 @@ export const GetDeploymentResponse = zod.object({
   "customDomain": zod.string().nullish(),
   "region": zod.string().nullish(),
   "buildLog": zod.string().nullish(),
+  "domainVerified": zod.boolean(),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
 })
@@ -321,6 +324,7 @@ export const UpdateDeploymentResponse = zod.object({
   "customDomain": zod.string().nullish(),
   "region": zod.string().nullish(),
   "buildLog": zod.string().nullish(),
+  "domainVerified": zod.boolean(),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
 })
@@ -331,6 +335,20 @@ export const UpdateDeploymentResponse = zod.object({
  */
 export const DeleteDeploymentParams = zod.object({
   "id": zod.coerce.number()
+})
+
+
+/**
+ * @summary Verify that the custom domain DNS is correctly configured
+ */
+export const VerifyDomainParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const VerifyDomainResponse = zod.object({
+  "verified": zod.boolean(),
+  "domain": zod.string().nullish(),
+  "message": zod.string()
 })
 
 
@@ -426,8 +444,7 @@ export const AiChatParams = zod.object({
 export const AiChatBody = zod.object({
   "message": zod.string().min(1),
   "context": zod.string().nullish(),
-  "currentFile": zod.string().nullish(),
-  "imageUrl": zod.string().nullish()
+  "currentFile": zod.string().nullish()
 })
 
 export const AiChatResponse = zod.object({
