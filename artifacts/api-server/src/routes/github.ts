@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { requireDangerousActionConfirmation } from "../middlewares/security";
 
 const router = Router();
 
@@ -107,7 +108,7 @@ router.patch("/github/repos/:owner/:repo", requireToken, async (req: any, res) =
   res.json(r.data);
 });
 
-router.delete("/github/repos/:owner/:repo", requireToken, async (req: any, res) => {
+router.delete("/github/repos/:owner/:repo", requireToken, requireDangerousActionConfirmation("delete-repo"), async (req: any, res) => {
   const r = await ghFetch(`/repos/${req.params.owner}/${req.params.repo}`, req.githubToken, {
     method: "DELETE",
   });
@@ -163,7 +164,7 @@ router.post("/github/repos/:owner/:repo/git/refs", requireToken, async (req: any
   res.status(201).json(r.data);
 });
 
-router.delete("/github/repos/:owner/:repo/git/refs/*ref", requireToken, async (req: any, res) => {
+router.delete("/github/repos/:owner/:repo/git/refs/*ref", requireToken, requireDangerousActionConfirmation("delete-branch"), async (req: any, res) => {
   const refPath = (req.params as any).ref ?? "";
   const r = await ghFetch(
     `/repos/${req.params.owner}/${req.params.repo}/git/refs/${refPath}`,
@@ -288,7 +289,7 @@ router.get("/github/repos/:owner/:repo/pulls/:number", requireToken, async (req:
   res.json(r.data);
 });
 
-router.put("/github/repos/:owner/:repo/pulls/:number/merge", requireToken, async (req: any, res) => {
+router.put("/github/repos/:owner/:repo/pulls/:number/merge", requireToken, requireDangerousActionConfirmation("merge-pr"), async (req: any, res) => {
   const r = await ghFetch(
     `/repos/${req.params.owner}/${req.params.repo}/pulls/${req.params.number}/merge`,
     req.githubToken,
@@ -350,7 +351,7 @@ router.get("/github/repos/:owner/:repo/contents/*filePath", requireToken, async 
 });
 
 // Create/update file in repo
-router.put("/github/repos/:owner/:repo/contents/*filePath", requireToken, async (req: any, res) => {
+router.put("/github/repos/:owner/:repo/contents/*filePath", requireToken, requireDangerousActionConfirmation("write-file"), async (req: any, res) => {
   const filePath = (req.params as any).filePath ?? "";
   const r = await ghFetch(
     `/repos/${req.params.owner}/${req.params.repo}/contents/${filePath}`,
@@ -362,7 +363,7 @@ router.put("/github/repos/:owner/:repo/contents/*filePath", requireToken, async 
 });
 
 // Delete file in repo
-router.delete("/github/repos/:owner/:repo/contents/*filePath", requireToken, async (req: any, res) => {
+router.delete("/github/repos/:owner/:repo/contents/*filePath", requireToken, requireDangerousActionConfirmation("delete-file"), async (req: any, res) => {
   const filePath = (req.params as any).filePath ?? "";
   const r = await ghFetch(
     `/repos/${req.params.owner}/${req.params.repo}/contents/${filePath}`,
@@ -375,7 +376,7 @@ router.delete("/github/repos/:owner/:repo/contents/*filePath", requireToken, asy
 
 // ── Push project files → GitHub repo ─────────────────────────────────────────
 // Creates or updates each file in the DB project to the target repo
-router.post("/github/repos/:owner/:repo/push-project", requireToken, async (req: any, res) => {
+router.post("/github/repos/:owner/:repo/push-project", requireToken, requireDangerousActionConfirmation("push-project"), async (req: any, res) => {
   const { files, branch = "main", commitMessage = "Push from CloudIDE" } = req.body as {
     files: Array<{ name: string; content: string }>;
     branch?: string;

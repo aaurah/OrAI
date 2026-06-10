@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { projectsTable, filesTable, deploymentsTable } from "@workspace/db";
 import { eq, desc, count, and, asc } from "drizzle-orm";
+import { actorId, accessibleProjectWhere, ownedProjectsWhere } from "../lib/access";
 import {
   CreateProjectBody,
   UpdateProjectBody,
@@ -12,18 +13,25 @@ import {
 
 const router = Router();
 
-router.get("/projects/stats", async (_req, res) => {
+router.get("/projects/stats", async (req, res): Promise<void> => {
+  const userId = actorId(req);
   try {
-    const [totalProjects] = await db.select({ count: count() }).from(projectsTable);
+    const ownedWhere = ownedProjectsWhere(userId);
+    const [totalProjects] = await db.select({ count: count() }).from(projectsTable).where(ownedWhere);
     const [activeProjects] = await db
       .select({ count: count() })
       .from(projectsTable)
-      .where(eq(projectsTable.status, "active"));
-    const [totalDeployments] = await db.select({ count: count() }).from(deploymentsTable);
+      .where(and(ownedWhere, eq(projectsTable.status, "active")));
+    const [totalDeployments] = await db
+      .select({ count: count() })
+      .from(deploymentsTable)
+      .leftJoin(projectsTable, eq(deploymentsTable.projectId, projectsTable.id))
+      .where(ownedWhere);
     const [liveDeployments] = await db
       .select({ count: count() })
       .from(deploymentsTable)
-      .where(eq(deploymentsTable.status, "live"));
+      .leftJoin(projectsTable, eq(deploymentsTable.projectId, projectsTable.id))
+      .where(and(ownedWhere, eq(deploymentsTable.status, "live")));
 
     res.json({
       totalProjects: totalProjects.count,
@@ -36,11 +44,13 @@ router.get("/projects/stats", async (_req, res) => {
   }
 });
 
-router.get("/projects/recent", async (_req, res) => {
+router.get("/projects/recent", async (req, res): Promise<void> => {
+  const userId = actorId(req);
   try {
     const projects = await db
       .select()
       .from(projectsTable)
+      .where(ownedProjectsWhere(userId))
       .orderBy(desc(projectsTable.updatedAt))
       .limit(6);
     res.json(projects.map(serializeProject));
@@ -49,19 +59,26 @@ router.get("/projects/recent", async (_req, res) => {
   }
 });
 
-router.get("/projects", async (_req, res) => {
+router.get("/projects", async (req, res): Promise<void> => {
+  const userId = actorId(req);
   try {
-    const projects = await db.select().from(projectsTable).orderBy(desc(projectsTable.updatedAt));
+    const projects = await db
+      .select()
+      .from(projectsTable)
+      .where(ownedProjectsWhere(userId))
+      .orderBy(desc(projectsTable.updatedAt));
     res.json(projects.map(serializeProject));
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch projects" });
   }
 });
 
-router.post("/projects", async (req, res) => {
+router.post("/projects", async (req, res): Promise<void> => {
+  const userId = actorId(req);
   const parsed = CreateProjectBody.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ error: parsed.error.message });
+    res.status(400).json({ error: parsed.error.message });
+    return;
   }
   try {
     const [project] = await db.insert(projectsTable).values({
@@ -69,6 +86,7 @@ router.post("/projects", async (req, res) => {
       description: parsed.data.description,
       language: parsed.data.language,
       template: parsed.data.template,
+      ownerId: userId,
       isPublic: parsed.data.isPublic ?? false,
       status: "active",
     }).returning();
@@ -79,41 +97,44 @@ router.post("/projects", async (req, res) => {
   }
 });
 
-router.get("/projects/:id", async (req, res) => {
+router.get("/projects/:id", async (req, res): Promise<void> => {
+  const userId = actorId(req);
   const parsed = GetProjectParams.safeParse({ id: Number(req.params.id) });
-  if (!parsed.success) return res.status(400).json({ error: "Invalid id" });
+  if (!parsed.success) { res.status(400).json({ error: "Invalid id" }); return; }
   try {
-    const [project] = await db.select().from(projectsTable).where(eq(projectsTable.id, parsed.data.id));
-    if (!project) return res.status(404).json({ error: "Not found" });
+    const [project] = await db.select().from(projectsTable).where(accessibleProjectWhere(parsed.data.id, userId));
+    if (!project) { res.status(404).json({ error: "Not found" }); return; }
     res.json(serializeProject(project));
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch project" });
   }
 });
 
-router.patch("/projects/:id", async (req, res) => {
+router.patch("/projects/:id", async (req, res): Promise<void> => {
+  const userId = actorId(req);
   const paramsParsed = UpdateProjectParams.safeParse({ id: Number(req.params.id) });
-  if (!paramsParsed.success) return res.status(400).json({ error: "Invalid id" });
+  if (!paramsParsed.success) { res.status(400).json({ error: "Invalid id" }); return; }
   const bodyParsed = UpdateProjectBody.safeParse(req.body);
-  if (!bodyParsed.success) return res.status(400).json({ error: bodyParsed.error.message });
+  if (!bodyParsed.success) { res.status(400).json({ error: bodyParsed.error.message }); return; }
   try {
     const [updated] = await db
       .update(projectsTable)
       .set({ ...bodyParsed.data, updatedAt: new Date() })
-      .where(eq(projectsTable.id, paramsParsed.data.id))
+      .where(accessibleProjectWhere(paramsParsed.data.id, userId))
       .returning();
-    if (!updated) return res.status(404).json({ error: "Not found" });
+    if (!updated) { res.status(404).json({ error: "Not found" }); return; }
     res.json(serializeProject(updated));
   } catch (err) {
     res.status(500).json({ error: "Failed to update project" });
   }
 });
 
-router.delete("/projects/:id", async (req, res) => {
+router.delete("/projects/:id", async (req, res): Promise<void> => {
+  const userId = actorId(req);
   const parsed = DeleteProjectParams.safeParse({ id: Number(req.params.id) });
-  if (!parsed.success) return res.status(400).json({ error: "Invalid id" });
+  if (!parsed.success) { res.status(400).json({ error: "Invalid id" }); return; }
   try {
-    await db.delete(projectsTable).where(eq(projectsTable.id, parsed.data.id));
+    await db.delete(projectsTable).where(accessibleProjectWhere(parsed.data.id, userId));
     res.status(204).send();
   } catch (err) {
     res.status(500).json({ error: "Failed to delete project" });
@@ -140,9 +161,13 @@ const MIME: Record<string, string> = {
   md: "text/markdown; charset=utf-8",
 };
 
-router.get("/projects/:id/preview", async (req, res) => {
+router.get("/projects/:id/preview", async (req, res): Promise<void> => {
   try {
     const projectId = Number(req.params.id);
+    const userId = actorId(req);
+
+    const [project] = await db.select({ id: projectsTable.id }).from(projectsTable).where(accessibleProjectWhere(projectId, userId));
+    if (!project) { res.status(404).send("Project not found"); return; }
 
     const allFiles = await db
       .select()
@@ -243,6 +268,7 @@ router.get("/projects/:id/preview", async (req, res) => {
       const projectName = esc(pkgJson?.name ?? `Project #${projectId}`);
       const description = esc(pkgJson?.description ?? "Imported project");
 
+      setPreviewSecurityHeaders(res);
       res.status(200).setHeader("Content-Type", "text/html; charset=utf-8").send(`<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -362,19 +388,24 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-seri
       return match; // base tag will allow browser to fetch it as fallback
     });
 
+    setPreviewSecurityHeaders(res);
     res.setHeader("Content-Type", "text/html; charset=utf-8");
-    res.setHeader("X-Frame-Options", "SAMEORIGIN");
     res.send(html);
   } catch {
     res.status(500).send("Preview error");
   }
 });
 
-router.get("/projects/:id/preview/*filename", async (req, res) => {
+router.get("/projects/:id/preview/*filename", async (req, res): Promise<void> => {
   try {
     const projectId = Number(req.params.id);
-    const filename = req.params.filename as string;
+    const userId = actorId(req);
+    const rawFilename = (req.params as { filename?: string | string[] }).filename ?? "";
+    const filename = Array.isArray(rawFilename) ? rawFilename.join("/") : rawFilename;
     const ext = filename.split(".").pop()?.toLowerCase() ?? "";
+
+    const [project] = await db.select({ id: projectsTable.id }).from(projectsTable).where(accessibleProjectWhere(projectId, userId));
+    if (!project) { res.status(404).send("Project not found"); return; }
 
     const [file] = await db
       .select()
@@ -387,6 +418,7 @@ router.get("/projects/:id/preview/*filename", async (req, res) => {
       return;
     }
 
+    setPreviewSecurityHeaders(res);
     res.setHeader("Content-Type", MIME[ext] ?? "text/plain; charset=utf-8");
     res.send(file.content || "");
   } catch {
@@ -400,6 +432,24 @@ function serializeProject(p: typeof projectsTable.$inferSelect) {
     createdAt: p.createdAt.toISOString(),
     updatedAt: p.updatedAt.toISOString(),
   };
+}
+
+function setPreviewSecurityHeaders(res: { setHeader(name: string, value: string): void }) {
+  res.setHeader("X-Frame-Options", "SAMEORIGIN");
+  res.setHeader(
+    "Content-Security-Policy",
+    [
+      "sandbox allow-scripts allow-forms",
+      "default-src 'none'",
+      "script-src 'unsafe-inline'",
+      "style-src 'unsafe-inline'",
+      "img-src data: blob:",
+      "font-src data:",
+      "connect-src 'none'",
+      "base-uri 'none'",
+      "form-action 'none'",
+    ].join("; "),
+  );
 }
 
 

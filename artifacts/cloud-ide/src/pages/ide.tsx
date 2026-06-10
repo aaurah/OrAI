@@ -6,7 +6,7 @@ import {
   LayoutPanelLeft, Code2, Loader2, FolderOpen,
   FilePlus, FilePen, FileX, AlertCircle, Sparkles,
   Monitor, RefreshCw, Paperclip, ImageIcon,
-  ChevronRight, ChevronDown,
+  ChevronRight, ChevronDown, ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -308,9 +308,7 @@ export default function IDE() {
   const fileInputRef                        = useRef<HTMLInputElement>(null);
   const [MonacoEditor, setMonacoEditor]     = useState<any>(null);
 
-  const { data: selectedFile } = useGetFile(projectId, selectedFileId ?? 0, {
-    query: { enabled: !!selectedFileId },
-  });
+  const { data: selectedFile } = useGetFile(projectId, selectedFileId ?? 0);
 
   const updateFile       = useUpdateFile();
   const createFile       = useCreateFile();
@@ -502,6 +500,7 @@ export default function IDE() {
       const timer = setTimeout(() => sendAiMessage(prompt), 800);
       return () => clearTimeout(timer);
     }
+    return undefined;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 

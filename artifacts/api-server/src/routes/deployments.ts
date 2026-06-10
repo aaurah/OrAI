@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { deploymentsTable, projectsTable } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
+import { actorId, denyIfNoProjectAccess, ownedProjectsWhere } from "../lib/access";
 import {
   ListDeploymentsParams,
   CreateDeploymentParams,
@@ -14,7 +15,8 @@ import {
 
 const router = Router();
 
-router.get("/deployments", async (_req, res) => {
+router.get("/deployments", async (req, res): Promise<void> => {
+  const userId = actorId(req);
   try {
     const deployments = await db
       .select({
@@ -31,6 +33,7 @@ router.get("/deployments", async (_req, res) => {
       })
       .from(deploymentsTable)
       .leftJoin(projectsTable, eq(deploymentsTable.projectId, projectsTable.id))
+      .where(ownedProjectsWhere(userId))
       .orderBy(desc(deploymentsTable.createdAt));
 
     res.json(deployments.map(serializeDeployment));
@@ -39,9 +42,10 @@ router.get("/deployments", async (_req, res) => {
   }
 });
 
-router.get("/deployments/:id", async (req, res) => {
+router.get("/deployments/:id", async (req, res): Promise<void> => {
+  const userId = actorId(req);
   const parsed = GetDeploymentParams.safeParse({ id: Number(req.params.id) });
-  if (!parsed.success) return res.status(400).json({ error: "Invalid id" });
+  if (!parsed.success) { res.status(400).json({ error: "Invalid id" }); return; }
   try {
     const rows = await db
       .select({
@@ -60,17 +64,19 @@ router.get("/deployments/:id", async (req, res) => {
       .leftJoin(projectsTable, eq(deploymentsTable.projectId, projectsTable.id))
       .where(eq(deploymentsTable.id, parsed.data.id));
 
-    if (!rows[0]) return res.status(404).json({ error: "Not found" });
+    if (!rows[0] || (await denyIfNoProjectAccess(res, rows[0].projectId as number, userId))) return;
     res.json(serializeDeployment(rows[0]));
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch deployment" });
   }
 });
 
-router.get("/projects/:id/deployments", async (req, res) => {
+router.get("/projects/:id/deployments", async (req, res): Promise<void> => {
+  const userId = actorId(req);
   const parsed = ListDeploymentsParams.safeParse({ id: Number(req.params.id) });
-  if (!parsed.success) return res.status(400).json({ error: "Invalid id" });
+  if (!parsed.success) { res.status(400).json({ error: "Invalid id" }); return; }
   try {
+    if (await denyIfNoProjectAccess(res, parsed.data.id, userId)) return;
     const deployments = await db
       .select()
       .from(deploymentsTable)
@@ -82,14 +88,16 @@ router.get("/projects/:id/deployments", async (req, res) => {
   }
 });
 
-router.post("/projects/:id/deployments", async (req, res) => {
+router.post("/projects/:id/deployments", async (req, res): Promise<void> => {
+  const userId = actorId(req);
   const paramsParsed = CreateDeploymentParams.safeParse({ id: Number(req.params.id) });
-  if (!paramsParsed.success) return res.status(400).json({ error: "Invalid id" });
+  if (!paramsParsed.success) { res.status(400).json({ error: "Invalid id" }); return; }
   const bodyParsed = CreateDeploymentBody.safeParse(req.body);
-  if (!bodyParsed.success) return res.status(400).json({ error: bodyParsed.error.message });
+  if (!bodyParsed.success) { res.status(400).json({ error: bodyParsed.error.message }); return; }
 
   try {
     const projectId = paramsParsed.data.id;
+    if (await denyIfNoProjectAccess(res, projectId, userId)) return;
     const host = req.get("host") || "localhost";
     const protocol = req.headers["x-forwarded-proto"] || req.protocol || "http";
     const url = `${protocol}://${host}/api/projects/${projectId}/preview`;
@@ -121,13 +129,16 @@ router.post("/projects/:id/deployments", async (req, res) => {
   }
 });
 
-router.patch("/deployments/:id", async (req, res) => {
+router.patch("/deployments/:id", async (req, res): Promise<void> => {
+  const userId = actorId(req);
   const paramsParsed = UpdateDeploymentParams.safeParse({ id: Number(req.params.id) });
-  if (!paramsParsed.success) return res.status(400).json({ error: "Invalid id" });
+  if (!paramsParsed.success) { res.status(400).json({ error: "Invalid id" }); return; }
   const bodyParsed = UpdateDeploymentBody.safeParse(req.body);
-  if (!bodyParsed.success) return res.status(400).json({ error: bodyParsed.error.message });
+  if (!bodyParsed.success) { res.status(400).json({ error: bodyParsed.error.message }); return; }
 
   try {
+    const [existing] = await db.select({ projectId: deploymentsTable.projectId }).from(deploymentsTable).where(eq(deploymentsTable.id, paramsParsed.data.id));
+    if (!existing || (await denyIfNoProjectAccess(res, existing.projectId, userId))) return;
     const updateData: Record<string, unknown> = { updatedAt: new Date() };
     if (bodyParsed.data.customDomain !== undefined) updateData.customDomain = bodyParsed.data.customDomain;
     if (bodyParsed.data.status !== undefined) updateData.status = bodyParsed.data.status;
@@ -137,17 +148,20 @@ router.patch("/deployments/:id", async (req, res) => {
       .set(updateData)
       .where(eq(deploymentsTable.id, paramsParsed.data.id))
       .returning();
-    if (!updated) return res.status(404).json({ error: "Not found" });
+    if (!updated) { res.status(404).json({ error: "Not found" }); return; }
     res.json({ ...serializeDeployment(updated), projectName: null });
   } catch (err) {
     res.status(500).json({ error: "Failed to update deployment" });
   }
 });
 
-router.delete("/deployments/:id", async (req, res) => {
+router.delete("/deployments/:id", async (req, res): Promise<void> => {
+  const userId = actorId(req);
   const parsed = DeleteDeploymentParams.safeParse({ id: Number(req.params.id) });
-  if (!parsed.success) return res.status(400).json({ error: "Invalid id" });
+  if (!parsed.success) { res.status(400).json({ error: "Invalid id" }); return; }
   try {
+    const [existing] = await db.select({ projectId: deploymentsTable.projectId }).from(deploymentsTable).where(eq(deploymentsTable.id, parsed.data.id));
+    if (!existing || (await denyIfNoProjectAccess(res, existing.projectId, userId))) return;
     await db.delete(deploymentsTable).where(eq(deploymentsTable.id, parsed.data.id));
     res.status(204).send();
   } catch (err) {

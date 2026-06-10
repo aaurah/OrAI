@@ -66,7 +66,7 @@ export default function Settings() {
   const { toast } = useToast();
 
   // ── GitHub token ────────────────────────────────────────────────────────────
-  const [token, setToken] = useState(localStorage.getItem("github_token") ?? "");
+  const [token, setToken] = useState(sessionStorage.getItem("github_token") ?? "");
   const [tokenInput, setTokenInput] = useState("");
   const [showToken, setShowToken] = useState(false);
   const [verifying, setVerifying] = useState(false);
@@ -87,7 +87,7 @@ export default function Settings() {
       if (data?.login) {
         setGhUser(data);
         setToken(t);
-        localStorage.setItem("github_token", t);
+        sessionStorage.setItem("github_token", t);
         setGhChecked(true);
         if (showToast) toast({ title: `Connected as @${data.login}` });
       } else {
@@ -112,7 +112,7 @@ export default function Settings() {
   }
 
   function disconnectGitHub() {
-    localStorage.removeItem("github_token");
+    sessionStorage.removeItem("github_token");
     setToken("");
     setGhUser(null);
     setGhChecked(false);
@@ -135,14 +135,14 @@ export default function Settings() {
   }
 
   // ── OpenAI key ──────────────────────────────────────────────────────────────
-  const [aiKey, setAiKey] = useState(localStorage.getItem("openai_key") ?? "");
+  const [aiKey, setAiKey] = useState(sessionStorage.getItem("openai_key") ?? "");
   const [showAiKey, setShowAiKey] = useState(false);
 
   function saveAiKey() {
     if (aiKey.trim()) {
-      localStorage.setItem("openai_key", aiKey.trim());
+      sessionStorage.setItem("openai_key", aiKey.trim());
     } else {
-      localStorage.removeItem("openai_key");
+      sessionStorage.removeItem("openai_key");
     }
     toast({ title: "AI key saved" });
   }
@@ -367,7 +367,7 @@ export default function Settings() {
                 <Save size={14} />Save
               </Button>
               {aiKey && (
-                <Button variant="outline" onClick={() => { setAiKey(""); localStorage.removeItem("openai_key"); toast({ title: "Key cleared" }); }} className="gap-1.5 text-sm">
+                <Button variant="outline" onClick={() => { setAiKey(""); sessionStorage.removeItem("openai_key"); toast({ title: "Key cleared" }); }} className="gap-1.5 text-sm">
                   <Trash2 size={14} />Clear
                 </Button>
               )}
@@ -385,7 +385,7 @@ export default function Settings() {
           </Row>
           <div className="pt-1 border-t border-border">
             <p className="text-xs text-muted-foreground">
-              Preferences marked as "saved" are stored in your browser's localStorage and persist across sessions on this device.
+              Editor and theme preferences are stored in localStorage. API tokens are kept in sessionStorage and cleared when this browser session ends.
             </p>
           </div>
         </Section>

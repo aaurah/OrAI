@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { filesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { AiChatParams, AiChatBody } from "@workspace/api-zod";
+import { actorId, denyIfNoProjectAccess } from "../lib/access";
 
 const router = Router();
 
@@ -29,24 +30,30 @@ type AIResult = {
 
 // ── Route ────────────────────────────────────────────────────────────
 
-router.post("/projects/:id/ai/chat", async (req, res) => {
+router.post("/projects/:id/ai/chat", async (req, res): Promise<void> => {
   try {
+    const userId = actorId(req);
     const paramsParsed = AiChatParams.safeParse({ id: Number(req.params.id) });
     if (!paramsParsed.success) {
-      return res.status(400).json({ error: "Invalid project ID", details: paramsParsed.error.message });
+      res.status(400).json({ error: "Invalid project ID", details: paramsParsed.error.message });
+      return;
     }
 
     const bodyParsed = AiChatBody.safeParse(req.body);
     if (!bodyParsed.success) {
-      return res.status(400).json({ error: "Invalid request body", details: bodyParsed.error.message });
+      res.status(400).json({ error: "Invalid request body", details: bodyParsed.error.message });
+      return;
     }
 
     const projectId = paramsParsed.data.id;
     const { message, context, currentFile, imageUrl } = bodyParsed.data;
 
+    if (await denyIfNoProjectAccess(res, projectId, userId)) return;
+
     // Validate message input
     if (!message || typeof message !== "string" || message.trim().length === 0) {
-      return res.status(400).json({ error: "Message cannot be empty" });
+      res.status(400).json({ error: "Message cannot be empty" });
+      return;
     }
 
     // Fetch current project files so the AI knows what exists
@@ -112,14 +119,10 @@ Rules:
 
     let aiResult: AIResult;
 
-    // Log the request for debugging
-    console.log(`[AI Chat] Project: ${projectId}, Message: "${message}", Files: ${existingFiles.length}, OpenAI Key: ${OPENAI_KEY ? "✓" : "✗"}`);
-
     if (!OPENAI_KEY) {
-      console.warn("[AI Chat] No OpenAI API key - using fallback with file creation");
       aiResult = generateAgenticFallbackWithBuilds(message, existingFiles, currentFile ?? null);
     } else {
-      aiResult = await callOpenAI(systemPrompt, message, imageUrl, existingFiles, currentFile ?? null);
+      aiResult = await callOpenAI(systemPrompt, message, imageUrl ?? undefined, existingFiles, currentFile ?? null);
     }
 
     // ── Execute actions ──────────────────────────────────────────────────────
@@ -191,24 +194,24 @@ Rules:
       }
     });
 
-    console.log(`[AI Chat] Executed ${executedActions.length} actions`);
-
-    return res.json({
+    res.json({
       reply:           aiResult.reply,
       actions:         executedActions,
       codeBlocks:      [],
     });
+    return;
 
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : "Unknown error";
-    console.error("[AI Route Error]", errorMessage, err);
+    console.error("[AI Route Error]", errorMessage);
     
-    return res.status(500).json({
+    res.status(500).json({
       error: "AI request failed",
       details: errorMessage,
       reply: "I encountered an error processing your request. Please try again.",
       actions: [],
     });
+    return;
   }
 });
 
@@ -240,8 +243,6 @@ async function callOpenAI(
   currentFile: string | null,
 ): Promise<AIResult> {
   try {
-    console.log(`[OpenAI] Calling ${OPENAI_BASE}/chat/completions with gpt-4o`);
-
     const response = await fetch(`${OPENAI_BASE}/chat/completions`, {
       method: "POST",
       headers: {
@@ -268,18 +269,14 @@ async function callOpenAI(
       }),
     });
 
-    console.log(`[OpenAI] Response status: ${response.status}`);
-
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      console.error("[OpenAI Error]", response.status, JSON.stringify(errorData));
+      console.error("[OpenAI Error]", response.status, typeof errorData === "object" ? "provider_error" : "provider_error_unparseable");
       return generateAgenticFallbackWithBuilds(message, existingFiles, currentFile);
     }
 
     const data = (await response.json()) as { choices: Array<{ message: { content: string } }> };
     let raw = data.choices[0]?.message?.content ?? "{}";
-    
-    console.log(`[OpenAI] Raw response (first 200 chars): ${raw.substring(0, 200)}`);
     
     raw = raw.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
     
@@ -287,7 +284,7 @@ async function callOpenAI(
       const parsed = JSON.parse(raw);
       
       if (!parsed.reply || typeof parsed.reply !== "string") {
-        console.warn("[AI Validation] Missing or invalid reply field", parsed);
+        console.warn("[AI Validation] Missing or invalid reply field");
         return generateAgenticFallbackWithBuilds(message, existingFiles, currentFile);
       }
       
@@ -296,18 +293,16 @@ async function callOpenAI(
         parsed.actions = [];
       }
       
-      console.log(`[OpenAI] Valid response with ${parsed.actions.length} actions`);
-      
       return {
         reply: String(parsed.reply),
         actions: Array.isArray(parsed.actions) ? parsed.actions : [],
       };
     } catch (parseErr) {
-      console.error("[JSON Parse Error]", parseErr, "Raw:", raw.substring(0, 500));
+      console.error("[JSON Parse Error]", parseErr instanceof Error ? parseErr.message : "Unknown parse error");
       return generateAgenticFallbackWithBuilds(message, existingFiles, currentFile);
     }
   } catch (fetchErr) {
-    console.error("[Fetch Error]", fetchErr);
+    console.error("[Fetch Error]", fetchErr instanceof Error ? fetchErr.message : "Unknown fetch error");
     return generateAgenticFallbackWithBuilds(message, existingFiles, currentFile);
   }
 }
@@ -589,12 +584,51 @@ function del() {
 
 function calculate() {
   try {
-    current = String(eval(current));
+    current = String(evaluateExpression(current));
     display.value = current;
   } catch {
     display.value = "Error";
     current = "0";
   }
+}
+
+function evaluateExpression(expr) {
+  if (!/^[0-9+\\-*/. ()]+$/.test(expr)) throw new Error("Invalid expression");
+  const tokens = expr.match(/\\d+(?:\\.\\d+)?|[+\\-*/()]/g) || [];
+  let i = 0;
+  function parseFactor() {
+    const token = tokens[i++];
+    if (token === "(") {
+      const value = parseExpression();
+      if (tokens[i++] !== ")") throw new Error("Missing )");
+      return value;
+    }
+    if (token === "-") return -parseFactor();
+    const value = Number(token);
+    if (!Number.isFinite(value)) throw new Error("Invalid number");
+    return value;
+  }
+  function parseTerm() {
+    let value = parseFactor();
+    while (tokens[i] === "*" || tokens[i] === "/") {
+      const op = tokens[i++];
+      const right = parseFactor();
+      value = op === "*" ? value * right : value / right;
+    }
+    return value;
+  }
+  function parseExpression() {
+    let value = parseTerm();
+    while (tokens[i] === "+" || tokens[i] === "-") {
+      const op = tokens[i++];
+      const right = parseTerm();
+      value = op === "+" ? value + right : value - right;
+    }
+    return value;
+  }
+  const result = parseExpression();
+  if (i !== tokens.length || !Number.isFinite(result)) throw new Error("Invalid expression");
+  return Math.round(result * 1e12) / 1e12;
 }`,
         },
       ],

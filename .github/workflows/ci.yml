@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  typecheck-build-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: corepack pnpm install --frozen-lockfile
+
+      - name: Typecheck libraries
+        run: corepack pnpm run typecheck:libs
+
+      - name: Typecheck apps
+        run: corepack pnpm -r --filter "./artifacts/**" --filter "./scripts" --if-present run typecheck
+
+      - name: Build
+        run: corepack pnpm -r --if-present run build
+        env:
+          PORT: "5000"
+          BASE_PATH: "/"
+
+      - name: Audit dependencies
+        run: corepack pnpm audit --audit-level moderate

@@ -1,7 +1,8 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { dnsRecordsTable } from "@workspace/db";
+import { deploymentsTable, dnsRecordsTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
+import { actorId, denyIfNoProjectAccess } from "../lib/access";
 import {
   ListDnsRecordsParams,
   CreateDnsRecordParams,
@@ -13,10 +14,12 @@ import {
 
 const router = Router();
 
-router.get("/deployments/:id/dns", async (req, res) => {
+router.get("/deployments/:id/dns", async (req, res): Promise<void> => {
+  const userId = actorId(req);
   const parsed = ListDnsRecordsParams.safeParse({ id: Number(req.params.id) });
-  if (!parsed.success) return res.status(400).json({ error: "Invalid id" });
+  if (!parsed.success) { res.status(400).json({ error: "Invalid id" }); return; }
   try {
+    if (await denyIfNoDeploymentAccess(res, parsed.data.id, userId)) return;
     const records = await db.select().from(dnsRecordsTable).where(eq(dnsRecordsTable.deploymentId, parsed.data.id));
     res.json(records.map(serializeDns));
   } catch (err) {
@@ -24,12 +27,14 @@ router.get("/deployments/:id/dns", async (req, res) => {
   }
 });
 
-router.post("/deployments/:id/dns", async (req, res) => {
+router.post("/deployments/:id/dns", async (req, res): Promise<void> => {
+  const userId = actorId(req);
   const paramsParsed = CreateDnsRecordParams.safeParse({ id: Number(req.params.id) });
-  if (!paramsParsed.success) return res.status(400).json({ error: "Invalid id" });
+  if (!paramsParsed.success) { res.status(400).json({ error: "Invalid id" }); return; }
   const bodyParsed = CreateDnsRecordBody.safeParse(req.body);
-  if (!bodyParsed.success) return res.status(400).json({ error: bodyParsed.error.message });
+  if (!bodyParsed.success) { res.status(400).json({ error: bodyParsed.error.message }); return; }
   try {
+    if (await denyIfNoDeploymentAccess(res, paramsParsed.data.id, userId)) return;
     const [record] = await db.insert(dnsRecordsTable).values({
       deploymentId: paramsParsed.data.id,
       type: bodyParsed.data.type,
@@ -44,12 +49,14 @@ router.post("/deployments/:id/dns", async (req, res) => {
   }
 });
 
-router.patch("/deployments/:id/dns/:recordId", async (req, res) => {
+router.patch("/deployments/:id/dns/:recordId", async (req, res): Promise<void> => {
+  const userId = actorId(req);
   const paramsParsed = UpdateDnsRecordParams.safeParse({ id: Number(req.params.id), recordId: Number(req.params.recordId) });
-  if (!paramsParsed.success) return res.status(400).json({ error: "Invalid params" });
+  if (!paramsParsed.success) { res.status(400).json({ error: "Invalid params" }); return; }
   const bodyParsed = UpdateDnsRecordBody.safeParse(req.body);
-  if (!bodyParsed.success) return res.status(400).json({ error: bodyParsed.error.message });
+  if (!bodyParsed.success) { res.status(400).json({ error: bodyParsed.error.message }); return; }
   try {
+    if (await denyIfNoDeploymentAccess(res, paramsParsed.data.id, userId)) return;
     const updateData: Record<string, unknown> = { updatedAt: new Date() };
     if (bodyParsed.data.type !== undefined) updateData.type = bodyParsed.data.type;
     if (bodyParsed.data.name !== undefined) updateData.name = bodyParsed.data.name;
@@ -62,17 +69,19 @@ router.patch("/deployments/:id/dns/:recordId", async (req, res) => {
       .set(updateData)
       .where(and(eq(dnsRecordsTable.id, paramsParsed.data.recordId), eq(dnsRecordsTable.deploymentId, paramsParsed.data.id)))
       .returning();
-    if (!updated) return res.status(404).json({ error: "Not found" });
+    if (!updated) { res.status(404).json({ error: "Not found" }); return; }
     res.json(serializeDns(updated));
   } catch (err) {
     res.status(500).json({ error: "Failed to update DNS record" });
   }
 });
 
-router.delete("/deployments/:id/dns/:recordId", async (req, res) => {
+router.delete("/deployments/:id/dns/:recordId", async (req, res): Promise<void> => {
+  const userId = actorId(req);
   const parsed = DeleteDnsRecordParams.safeParse({ id: Number(req.params.id), recordId: Number(req.params.recordId) });
-  if (!parsed.success) return res.status(400).json({ error: "Invalid params" });
+  if (!parsed.success) { res.status(400).json({ error: "Invalid params" }); return; }
   try {
+    if (await denyIfNoDeploymentAccess(res, parsed.data.id, userId)) return;
     await db.delete(dnsRecordsTable).where(
       and(eq(dnsRecordsTable.id, parsed.data.recordId), eq(dnsRecordsTable.deploymentId, parsed.data.id))
     );
@@ -88,6 +97,20 @@ function serializeDns(r: typeof dnsRecordsTable.$inferSelect) {
     createdAt: r.createdAt.toISOString(),
     updatedAt: r.updatedAt.toISOString(),
   };
+}
+
+async function denyIfNoDeploymentAccess(res: Parameters<typeof denyIfNoProjectAccess>[0], deploymentId: number, userId: string): Promise<boolean> {
+  const [deployment] = await db
+    .select({ projectId: deploymentsTable.projectId })
+    .from(deploymentsTable)
+    .where(eq(deploymentsTable.id, deploymentId));
+
+  if (!deployment) {
+    res.status(404).json({ error: "Deployment not found" });
+    return true;
+  }
+
+  return denyIfNoProjectAccess(res, deployment.projectId, userId);
 }
 
 export default router;

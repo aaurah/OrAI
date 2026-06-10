@@ -1,8 +1,15 @@
 import app from "./app";
 import { logger } from "./lib/logger";
-import { db } from "@workspace/db";
+import { db, pool } from "@workspace/db";
 import { deploymentsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+
+// Apply tiny backwards-compatible schema hardening needed for ownership checks.
+// Existing projects are left with a null owner_id and remain visible only to
+// authenticated users until they are claimed/updated by later product flows.
+await pool.query("ALTER TABLE projects ADD COLUMN IF NOT EXISTS owner_id text").catch((err: unknown) =>
+  logger.warn({ err }, "Failed to ensure projects.owner_id exists"),
+);
 
 // Clean up any deployments left in "building" state from a previous server run
 db.update(deploymentsTable)

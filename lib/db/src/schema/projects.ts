@@ -8,6 +8,7 @@ export const projectsTable = pgTable("projects", {
   description: text("description"),
   language: text("language").notNull().default("javascript"),
   template: text("template"),
+  ownerId: text("owner_id"),
   status: text("status").notNull().default("active"),
   isPublic: boolean("is_public").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),

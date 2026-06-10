@@ -20,14 +20,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 const API = "/api/github";
 
-async function ghApi(path: string, opts: RequestInit = {}) {
-  const token = localStorage.getItem("github_token") ?? "";
+type GhRequestOptions = RequestInit & { confirmAction?: string };
+
+async function ghApi(path: string, opts: GhRequestOptions = {}) {
+  const { confirmAction, ...requestOpts } = opts;
+  const token = sessionStorage.getItem("github_token") ?? "";
   const res = await fetch(path, {
-    ...opts,
+    ...requestOpts,
     headers: {
       "Content-Type": "application/json",
       ...(token ? { "x-github-token": token } : {}),
-      ...(opts.headers as Record<string, string> ?? {}),
+      ...(confirmAction ? { "x-orai-confirm-action": confirmAction } : {}),
+      ...(requestOpts.headers as Record<string, string> ?? {}),
     },
   });
   if (res.status === 204) return null;
@@ -101,7 +105,7 @@ export default function GitHubPage() {
   const { toast } = useToast();
 
   // Auth
-  const [token, setToken] = useState(localStorage.getItem("github_token") ?? "");
+  const [token, setToken] = useState(sessionStorage.getItem("github_token") ?? "");
   const [tokenInput, setTokenInput] = useState("");
   const [user, setUser] = useState<GhUser | null>(null);
   const [connected, setConnected] = useState(false);
@@ -184,7 +188,7 @@ export default function GitHubPage() {
     if (!tok) return;
     setLoading(true);
     try {
-      localStorage.setItem("github_token", tok);
+      sessionStorage.setItem("github_token", tok);
       setToken(tok);
       const data = await ghApi(`${API}/user`);
       if (data?.login) {
@@ -194,7 +198,7 @@ export default function GitHubPage() {
         toast({ title: `Connected as ${data.login}` });
       } else {
         toast({ title: "Invalid token", variant: "destructive" });
-        localStorage.removeItem("github_token");
+        sessionStorage.removeItem("github_token");
       }
     } catch {
       toast({ title: "Connection failed", variant: "destructive" });
@@ -204,7 +208,7 @@ export default function GitHubPage() {
   }
 
   function disconnect() {
-    localStorage.removeItem("github_token");
+    sessionStorage.removeItem("github_token");
     setToken(""); setUser(null); setConnected(false); setRepos([]); setSelectedRepo(null);
   }
 
@@ -352,7 +356,7 @@ export default function GitHubPage() {
 
   async function deleteRepo(repo: GhRepo) {
     if (!confirm(`Delete "${repo.full_name}"? This cannot be undone.`)) return;
-    await ghApi(`${API}/repos/${repo.owner.login}/${repo.name}`, { method: "DELETE" });
+    await ghApi(`${API}/repos/${repo.owner.login}/${repo.name}`, { method: "DELETE", confirmAction: "delete-repo" });
     setRepos(rs => rs.filter(r => r.id !== repo.id));
     if (selectedRepo?.id === repo.id) setSelectedRepo(null);
     toast({ title: `Deleted ${repo.name}` });
@@ -369,7 +373,10 @@ export default function GitHubPage() {
   async function createBranch() {
     if (!selectedRepo || !newBranch.name || !newBranch.from) return;
     const fromBranch = await ghApi(`${API}/repos/${selectedRepo.owner.login}/${selectedRepo.name}/branches/${newBranch.from}`);
-    if (!fromBranch?.commit?.sha) return toast({ title: "Cannot find source branch SHA", variant: "destructive" });
+    if (!fromBranch?.commit?.sha) {
+      toast({ title: "Cannot find source branch SHA", variant: "destructive" });
+      return;
+    }
     const d = await ghApi(`${API}/repos/${selectedRepo.owner.login}/${selectedRepo.name}/git/refs`, {
       method: "POST",
       body: JSON.stringify({ ref: `refs/heads/${newBranch.name}`, sha: fromBranch.commit.sha }),
@@ -387,7 +394,7 @@ export default function GitHubPage() {
   async function deleteBranch(branch: GhBranch) {
     if (!selectedRepo) return;
     if (!confirm(`Delete branch "${branch.name}"?`)) return;
-    await ghApi(`${API}/repos/${selectedRepo.owner.login}/${selectedRepo.name}/git/refs/heads/${branch.name}`, { method: "DELETE" });
+    await ghApi(`${API}/repos/${selectedRepo.owner.login}/${selectedRepo.name}/git/refs/heads/${branch.name}`, { method: "DELETE", confirmAction: "delete-branch" });
     setBranches(bs => bs.filter(b => b.name !== branch.name));
     toast({ title: `Branch "${branch.name}" deleted` });
   }
@@ -427,7 +434,7 @@ export default function GitHubPage() {
   async function mergePR(pr: GhPR) {
     if (!selectedRepo) return;
     const d = await ghApi(`${API}/repos/${selectedRepo.owner.login}/${selectedRepo.name}/pulls/${pr.number}/merge`, {
-      method: "PUT", body: JSON.stringify({ merge_method: "merge" }),
+      method: "PUT", confirmAction: "merge-pr", body: JSON.stringify({ merge_method: "merge" }),
     });
     if (d?.merged) {
       setPulls(ps => ps.map(p => p.number === pr.number ? { ...p, state: "closed" } : p));
@@ -536,6 +543,7 @@ export default function GitHubPage() {
       if (fileSha) payload.sha = fileSha;
       const d = await ghApi(`${API}/repos/${selectedRepo.owner.login}/${selectedRepo.name}/contents/${path}`, {
         method: "PUT",
+        confirmAction: "write-file",
         body: JSON.stringify(payload),
       });
       if (d?.content) {
@@ -705,6 +713,7 @@ export default function GitHubPage() {
       if (!Array.isArray(files)) throw new Error("Failed to load project files");
       const d = await ghApi(`${API}/repos/${selectedRepo.owner.login}/${selectedRepo.name}/push-project`, {
         method: "POST",
+        confirmAction: "push-project",
         body: JSON.stringify({
           files: files.filter((f: any) => f.type === "file").map((f: any) => ({ name: f.name, content: f.content ?? "" })),
           branch: pushBranch,
