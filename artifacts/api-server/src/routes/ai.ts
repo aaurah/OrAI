@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { filesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { AiChatParams, AiChatBody } from "@workspace/api-zod";
+import { logger } from "../lib/logger";
 
 const router = Router();
 
@@ -150,10 +151,10 @@ Rules:
     const { aiBase, aiKey, aiModel } = getAiConfig();
 
     // Log the request for debugging
-    console.log(`[AI Chat] Project: ${projectId}, Message: "${message}", Files: ${existingFiles.length}, Source files: ${sourceFiles.length}, AI Key: ${aiKey ? "✓" : "✗"}`);
+    logger.info({ projectId, files: existingFiles.length, sourceFiles: sourceFiles.length, hasKey: !!aiKey }, "[AI Chat] request");
 
     if (!aiKey) {
-      console.warn("[AI Chat] No AI API key - using fallback with file creation");
+      logger.warn("[AI Chat] No AI API key - using fallback");
       aiResult = generateAgenticFallbackWithBuilds(message, sourceFiles, currentFile ?? null);
     } else {
       aiResult = await callOpenAI(systemPrompt, message, imageUrl ?? undefined, sourceFiles, currentFile ?? null, { aiBase, aiKey, aiModel });
@@ -228,7 +229,7 @@ Rules:
       }
     });
 
-    console.log(`[AI Chat] Executed ${executedActions.length} actions`);
+    logger.info({ actions: executedActions.length }, "[AI Chat] executed actions");
 
     return res.json({
       reply:           aiResult.reply,
@@ -238,7 +239,7 @@ Rules:
 
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : "Unknown error";
-    console.error("[AI Route Error]", errorMessage, err);
+    logger.error({ err, errorMessage }, "[AI Route] request failed");
     
     return res.status(500).json({
       error: "AI request failed",
@@ -351,7 +352,7 @@ async function callOpenAI(
 ): Promise<AIResult> {
   const { aiBase, aiKey, aiModel } = config;
   try {
-    console.log(`[AI Provider] Calling ${aiBase}/chat/completions with ${aiModel}`);
+    logger.info({ aiBase, aiModel }, "[AI Provider] calling completions");
 
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
@@ -385,18 +386,18 @@ async function callOpenAI(
       }),
     });
 
-    console.log(`[AI Provider] Response status: ${response.status}`);
+    logger.info({ status: response.status }, "[AI Provider] response received");
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      console.error("[AI Provider Error]", response.status, JSON.stringify(errorData));
+      logger.error({ status: response.status, errorData }, "[AI Provider] API error");
       return generateAgenticFallbackWithBuilds(message, existingFiles, currentFile);
     }
 
     const data = (await response.json()) as { choices: Array<{ message: { content: string } }> };
     let raw = data.choices[0]?.message?.content ?? "{}";
     
-    console.log(`[AI Provider] Raw response (first 200 chars): ${raw.substring(0, 200)}`);
+    logger.debug({ preview: raw.substring(0, 200) }, "[AI Provider] raw response");
     
     raw = raw.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
     
@@ -404,27 +405,27 @@ async function callOpenAI(
       const parsed = JSON.parse(raw);
       
       if (!parsed.reply || typeof parsed.reply !== "string") {
-        console.warn("[AI Validation] Missing or invalid reply field", parsed);
+        logger.warn({ parsed }, "[AI Validation] missing or invalid reply field");
         return generateAgenticFallbackWithBuilds(message, existingFiles, currentFile);
       }
       
       if (!Array.isArray(parsed.actions)) {
-        console.warn("[AI Validation] Actions is not an array, defaulting to []");
+        logger.warn("[AI Validation] actions is not an array, defaulting to []");
         parsed.actions = [];
       }
       
-      console.log(`[AI Provider] Valid response with ${parsed.actions.length} actions`);
+      logger.info({ actions: parsed.actions.length }, "[AI Provider] valid response");
       
       return {
         reply: String(parsed.reply),
         actions: Array.isArray(parsed.actions) ? parsed.actions : [],
       };
     } catch (parseErr) {
-      console.error("[JSON Parse Error]", parseErr, "Raw:", raw.substring(0, 500));
+      logger.error({ parseErr, raw: raw.substring(0, 500) }, "[AI Provider] JSON parse error");
       return generateAgenticFallbackWithBuilds(message, existingFiles, currentFile);
     }
   } catch (fetchErr) {
-    console.error("[Fetch Error]", fetchErr);
+    logger.error({ fetchErr }, "[AI Provider] fetch error");
     return generateAgenticFallbackWithBuilds(message, existingFiles, currentFile);
   }
 }

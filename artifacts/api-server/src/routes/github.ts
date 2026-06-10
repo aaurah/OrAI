@@ -164,7 +164,8 @@ router.post("/github/repos/:owner/:repo/git/refs", requireToken, async (req: any
 });
 
 router.delete("/github/repos/:owner/:repo/git/refs/*ref", requireToken, async (req: any, res) => {
-  const refPath = (req.params as any).ref ?? "";
+  const refParam = (req.params as Record<string, string | string[]>).ref ?? "";
+  const refPath = Array.isArray(refParam) ? refParam.join("/") : refParam;
   const r = await ghFetch(
     `/repos/${req.params.owner}/${req.params.repo}/git/refs/${refPath}`,
     req.githubToken,
@@ -338,7 +339,7 @@ router.get("/github/repos/:owner/:repo/contents", requireToken, async (req: any,
 });
 
 router.get("/github/repos/:owner/:repo/contents/*filePath", requireToken, async (req: any, res) => {
-  const filePath = (req.params as any).filePath ?? "";
+  const filePath = (req.params as Record<string, string>).filePath ?? "";
   const { ref = "" } = req.query;
   const qs = ref ? `?ref=${ref}` : "";
   const r = await ghFetch(
@@ -351,7 +352,7 @@ router.get("/github/repos/:owner/:repo/contents/*filePath", requireToken, async 
 
 // Create/update file in repo
 router.put("/github/repos/:owner/:repo/contents/*filePath", requireToken, async (req: any, res) => {
-  const filePath = (req.params as any).filePath ?? "";
+  const filePath = (req.params as Record<string, string>).filePath ?? "";
   const r = await ghFetch(
     `/repos/${req.params.owner}/${req.params.repo}/contents/${filePath}`,
     req.githubToken,
@@ -363,7 +364,7 @@ router.put("/github/repos/:owner/:repo/contents/*filePath", requireToken, async 
 
 // Delete file in repo
 router.delete("/github/repos/:owner/:repo/contents/*filePath", requireToken, async (req: any, res) => {
-  const filePath = (req.params as any).filePath ?? "";
+  const filePath = (req.params as Record<string, string>).filePath ?? "";
   const r = await ghFetch(
     `/repos/${req.params.owner}/${req.params.repo}/contents/${filePath}`,
     req.githubToken,

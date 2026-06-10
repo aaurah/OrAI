@@ -1,2 +1,6 @@
 - [GitHub Integration](github-integration.md) — Full GitHub integration uses PAT auth via x-github-token header or GITHUB_TOKEN env; Express 5 wildcards must be named (*name syntax)
 - [Express 5 wildcards](express5-wildcards.md) — path-to-regexp v8 requires named wildcards: use *name not *, and avoid :param(*) syntax
+- [Express 5 TS7030 fix](express5-ts7030.md) — return void res.status(X).json(Y) pattern fixes "not all code paths return a value" in async handlers
+- [Vite config PORT guard](vite-port-guard.md) — PORT/BASE_PATH must have defaults (not throw) so pnpm run build works without env vars
+- [AI route logging](ai-route-logging.md) — All ai.ts logging uses pino logger (never console.*); structured fields, redaction via logger config
+- [OpenAPI codegen flow](openapi-codegen.md) — After editing openapi.yaml, always run pnpm --filter @workspace/api-spec run codegen before typecheck; codegen produces both Zod validators and React Query hooks

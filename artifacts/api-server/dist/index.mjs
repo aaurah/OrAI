@@ -57054,6 +57054,26 @@ var dns_default = router5;
 
 // src/routes/ai.ts
 var import_express6 = __toESM(require_express2(), 1);
+
+// src/lib/logger.ts
+var import_pino = __toESM(require_pino(), 1);
+var isProduction = process.env.NODE_ENV === "production";
+var logger = (0, import_pino.default)({
+  level: process.env.LOG_LEVEL ?? "info",
+  redact: [
+    "req.headers.authorization",
+    "req.headers.cookie",
+    "res.headers['set-cookie']"
+  ],
+  ...isProduction ? {} : {
+    transport: {
+      target: "pino-pretty",
+      options: { colorize: true }
+    }
+  }
+});
+
+// src/routes/ai.ts
 var router6 = (0, import_express6.Router)();
 function getAiConfig() {
   const hasOpenRouterKey = Boolean(
@@ -57147,9 +57167,9 @@ Rules:
 - ALWAYS return valid JSON. No trailing commas. No comments inside JSON.`;
     let aiResult;
     const { aiBase, aiKey, aiModel } = getAiConfig();
-    console.log(`[AI Chat] Project: ${projectId}, Message: "${message}", Files: ${existingFiles.length}, Source files: ${sourceFiles.length}, AI Key: ${aiKey ? "\u2713" : "\u2717"}`);
+    logger.info({ projectId, files: existingFiles.length, sourceFiles: sourceFiles.length, hasKey: !!aiKey }, "[AI Chat] request");
     if (!aiKey) {
-      console.warn("[AI Chat] No AI API key - using fallback with file creation");
+      logger.warn("[AI Chat] No AI API key - using fallback");
       aiResult = generateAgenticFallbackWithBuilds(message, sourceFiles, currentFile ?? null);
     } else {
       aiResult = await callOpenAI(systemPrompt, message, imageUrl ?? void 0, sourceFiles, currentFile ?? null, { aiBase, aiKey, aiModel });
@@ -57204,7 +57224,7 @@ Rules:
         }
       }
     });
-    console.log(`[AI Chat] Executed ${executedActions.length} actions`);
+    logger.info({ actions: executedActions.length }, "[AI Chat] executed actions");
     return res.json({
       reply: aiResult.reply,
       actions: executedActions,
@@ -57212,7 +57232,7 @@ Rules:
     });
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : "Unknown error";
-    console.error("[AI Route Error]", errorMessage, err);
+    logger.error({ err, errorMessage }, "[AI Route] request failed");
     return res.status(500).json({
       error: "AI request failed",
       details: errorMessage,
@@ -57306,7 +57326,7 @@ ${clipped}
 async function callOpenAI(systemPrompt, message, imageUrl, existingFiles, currentFile, config2) {
   const { aiBase, aiKey, aiModel } = config2;
   try {
-    console.log(`[AI Provider] Calling ${aiBase}/chat/completions with ${aiModel}`);
+    logger.info({ aiBase, aiModel }, "[AI Provider] calling completions");
     const headers = {
       "Content-Type": "application/json",
       Authorization: `Bearer ${aiKey}`
@@ -57334,37 +57354,37 @@ async function callOpenAI(systemPrompt, message, imageUrl, existingFiles, curren
         temperature: 0.35
       })
     });
-    console.log(`[AI Provider] Response status: ${response.status}`);
+    logger.info({ status: response.status }, "[AI Provider] response received");
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      console.error("[AI Provider Error]", response.status, JSON.stringify(errorData));
+      logger.error({ status: response.status, errorData }, "[AI Provider] API error");
       return generateAgenticFallbackWithBuilds(message, existingFiles, currentFile);
     }
     const data = await response.json();
     let raw = data.choices[0]?.message?.content ?? "{}";
-    console.log(`[AI Provider] Raw response (first 200 chars): ${raw.substring(0, 200)}`);
+    logger.debug({ preview: raw.substring(0, 200) }, "[AI Provider] raw response");
     raw = raw.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
     try {
       const parsed = JSON.parse(raw);
       if (!parsed.reply || typeof parsed.reply !== "string") {
-        console.warn("[AI Validation] Missing or invalid reply field", parsed);
+        logger.warn({ parsed }, "[AI Validation] missing or invalid reply field");
         return generateAgenticFallbackWithBuilds(message, existingFiles, currentFile);
       }
       if (!Array.isArray(parsed.actions)) {
-        console.warn("[AI Validation] Actions is not an array, defaulting to []");
+        logger.warn("[AI Validation] actions is not an array, defaulting to []");
         parsed.actions = [];
       }
-      console.log(`[AI Provider] Valid response with ${parsed.actions.length} actions`);
+      logger.info({ actions: parsed.actions.length }, "[AI Provider] valid response");
       return {
         reply: String(parsed.reply),
         actions: Array.isArray(parsed.actions) ? parsed.actions : []
       };
     } catch (parseErr) {
-      console.error("[JSON Parse Error]", parseErr, "Raw:", raw.substring(0, 500));
+      logger.error({ parseErr, raw: raw.substring(0, 500) }, "[AI Provider] JSON parse error");
       return generateAgenticFallbackWithBuilds(message, existingFiles, currentFile);
     }
   } catch (fetchErr) {
-    console.error("[Fetch Error]", fetchErr);
+    logger.error({ fetchErr }, "[AI Provider] fetch error");
     return generateAgenticFallbackWithBuilds(message, existingFiles, currentFile);
   }
 }
@@ -58120,7 +58140,8 @@ router8.post("/github/repos/:owner/:repo/git/refs", requireToken, async (req, re
   res.status(201).json(r.data);
 });
 router8.delete("/github/repos/:owner/:repo/git/refs/*ref", requireToken, async (req, res) => {
-  const refPath = req.params.ref ?? "";
+  const refParam = req.params.ref ?? "";
+  const refPath = Array.isArray(refParam) ? refParam.join("/") : refParam;
   const r = await ghFetch(
     `/repos/${req.params.owner}/${req.params.repo}/git/refs/${refPath}`,
     req.githubToken,
@@ -58436,24 +58457,6 @@ router9.use(ai_default);
 router9.use(templates_default);
 router9.use(github_default);
 var routes_default = router9;
-
-// src/lib/logger.ts
-var import_pino = __toESM(require_pino(), 1);
-var isProduction = process.env.NODE_ENV === "production";
-var logger = (0, import_pino.default)({
-  level: process.env.LOG_LEVEL ?? "info",
-  redact: [
-    "req.headers.authorization",
-    "req.headers.cookie",
-    "res.headers['set-cookie']"
-  ],
-  ...isProduction ? {} : {
-    transport: {
-      target: "pino-pretty",
-      options: { colorize: true }
-    }
-  }
-});
 
 // src/app.ts
 var app = (0, import_express10.default)();
