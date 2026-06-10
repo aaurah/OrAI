@@ -1,0 +1,68 @@
+[plugin:runtime-error-plugin] recentProjects.map is not a function. (In 'recentProjects.map(
+        (project) => /* @__PURE__ */ jsxDEV(Link, { "data-replit-metadata": "artifacts/cloud-ide/src/pages/dashboard.tsx:150:16", "data-component-name": "Link", href: `/projects/${project.id}`, children: /* @__PURE__ */ jsxDEV(Card, { "data-replit-metadata": "artifacts/cloud-ide/src/pages/dashboard.tsx:151:18", "data-component-name": "Card", className: "group hover:border-primary/50 transition-colors cursor-pointer h-full flex flex-col hover-elevate", children: [
+          /* @__PURE__ */ jsxDEV(CardHeader, { "data-replit-metadata": "artifacts/cloud-ide/src/pages/dashboard.tsx:152:20", "data-component-name": "CardHeader", className: "pb-2 flex-none", children: [
+            /* @__PURE__ */ jsxDEV("div", { "data-replit-metadata": "artifacts/cloud-ide/src/pages/dashboard.tsx:153:22", "data-component-name": "div", className: "flex justify-between items-start mb-1", children: [
+              /* @__PURE__ */ jsxDEV(CardTitle, { "data-replit-metadata": "artifacts/cloud-ide/src/pages/dashboard.tsx:154:24", "data-component-name": "CardTitle", className: "text-base group-hover:text-primary transition-colors line-clamp-1", children: project.name }, void 0, false, {
+                fileName: "/home/runner/workspace/artifacts/cloud-ide/src/pages/dashboard.tsx",
+                lineNumber: 154,
+                columnNumber: 25
+              }, this),
+              project.isPublic && /* @__PURE__ */ jsxDEV(Badge, { "data-replit-metadata": "artifacts/cloud-ide/src/pages/dashboard.tsx:155:45", "data-component-name": "Badge", variant: "outline", className: "text-[10px] px-1.5 py-0", children: "Public" }, void 0, false, {
+                fileName: "/home/runner/workspace/artifacts/cloud-ide/src/pages/dashboard.tsx",
+                lineNumber: 155,
+                columnNumber: 46
+              }, this)
+            ] }, void 0, true, {
+              fileName: "/home/runner/workspace/artifacts/cloud-ide/src/pages/dashboard.tsx",
+              lineNumber: 153,
+              columnNumber: 23
+            }, this),
+            /* @__PURE__ */ jsxDEV(CardDescription, { "data-replit-metadata": "artifacts/cloud-ide/src/pages/dashboard.tsx:157:22", "data-component-name": "CardDescription", className: "line-clamp-2 text-xs", children: project.description || "No description provided" }, void 0, false, {
+              fileName: "/home/runner/workspace/artifacts/cloud-ide/src/pages/dashboard.tsx",
+              lineNumber: 157,
+              columnNumber: 23
+            }, this)
+          ] }, void 0, true, {
+            fileName: "/home/runner/workspace/artifacts/cloud-ide/src/pages/dashboard.tsx",
+            lineNumber: 152,
+            columnNumber: 21
+          }, this),
+          /* @__PURE__ */ jsxDEV(CardContent, { "data-replit-metadata": "artifacts/cloud-ide/src/pages/dashboard.tsx:161:20", "data-component-name": "CardContent", className: "mt-auto pt-4 flex items-center justify-between text-xs text-muted-foreground", children: [
+            /* @__PURE__ */ jsxDEV("div", { "data-replit-metadata": "artifacts/cloud-ide/src/pages/dashboard.tsx:162:22", "data-component-name": "div", className: "flex items-center gap-2", children: [
+              /* @__PURE__ */ jsxDEV(Badge, { "data-replit-metadata": "artifacts/cloud-ide/src/pages/dashboard.tsx:163:24", "data-component-name": "Badge", variant: "secondary", className: "font-mono text-[10px] bg-secondary/50", children: project.language }, void 0, false, {
+                fileName: "/home/runner/workspace/artifacts/cloud-ide/src/pages/dashboard.tsx",
+                lineNumber: 163,
+                columnNumber: 25
+              }, this),
+              project.status === "active" && /* @__PURE__ */ jsxDEV("span", { "data-replit-metadata": "artifacts/cloud-ide/src/pages/dashboard.tsx:167:26", "data-component-name": "span", className: "flex h-2 w-2 rounded-full bg-green-500" }, void 0, false, {
+                fileName: "/home/runner/workspace/artifacts/cloud-ide/src/pages/dashboard.tsx",
+                lineNumber: 167,
+                columnNumber: 21
+              }, this)
+            ] }, void 0, true, {
+              fileName: "/home/runner/workspace/artifacts/cloud-ide/src/pages/dashboard.tsx",
+              lineNumber: 162,
+              columnNumber: 23
+            }, this),
+            /* @__PURE__ */ jsxDEV("span", { "data-replit-metadata": "artifacts/cloud-ide/src/pages/dashboard.tsx:170:22", "data-component-name": "span", children: formatTimeAgo(project.updatedAt) }, void 0, false, {
+              fileName: "/home/runner/workspace/artifacts/cloud-ide/src/pages/dashboard.tsx",
+              lineNumber: 170,
+              columnNumber: 23
+            }, this)
+          ] }, void 0, true, {
+            fileName: "/home/runner/workspace/artifacts/cloud-ide/src/pages/dashboard.tsx",
+            lineNumber: 161,
+            columnNumber: 21
+          }, this)
+        ] }, void 0, true, {
+          fileName: "/home/runner/workspace/artifacts/cloud-ide/src/pages/dashboard.tsx",
+          lineNumber: 151,
+          columnNumber: 19
+        }, this) }, project.id, false, {
+          fileName: "/home/runner/workspace/artifacts/cloud-ide/src/pages/dashboard.tsx",
+          lineNumber: 150,
+          columnNumber: 13
+        }, this)
+      )', 'recentProjects.map' is undefined)
+Click outside, press Esc key, or fix the code to dismiss.
+You can also disable this overlay by setting server.hmr.overlay to false in vite.config.ts.
