@@ -37712,6 +37712,7 @@ var ListDeploymentsResponseItem = objectType({
   "customDomain": stringType().nullish(),
   "region": stringType().nullish(),
   "buildLog": stringType().nullish(),
+  "domainVerified": booleanType(),
   "createdAt": stringType(),
   "updatedAt": stringType()
 });
@@ -37732,6 +37733,7 @@ var ListAllDeploymentsResponseItem = objectType({
   "customDomain": stringType().nullish(),
   "region": stringType().nullish(),
   "buildLog": stringType().nullish(),
+  "domainVerified": booleanType(),
   "createdAt": stringType(),
   "updatedAt": stringType()
 });
@@ -37748,6 +37750,7 @@ var GetDeploymentResponse = objectType({
   "customDomain": stringType().nullish(),
   "region": stringType().nullish(),
   "buildLog": stringType().nullish(),
+  "domainVerified": booleanType(),
   "createdAt": stringType(),
   "updatedAt": stringType()
 });
@@ -37767,11 +37770,20 @@ var UpdateDeploymentResponse = objectType({
   "customDomain": stringType().nullish(),
   "region": stringType().nullish(),
   "buildLog": stringType().nullish(),
+  "domainVerified": booleanType(),
   "createdAt": stringType(),
   "updatedAt": stringType()
 });
 var DeleteDeploymentParams = objectType({
   "id": coerce.number()
+});
+var VerifyDomainParams = objectType({
+  "id": coerce.number()
+});
+var VerifyDomainResponse = objectType({
+  "verified": booleanType(),
+  "domain": stringType().nullish(),
+  "message": stringType()
 });
 var ListDnsRecordsParams = objectType({
   "id": coerce.number()
@@ -37830,8 +37842,7 @@ var AiChatParams = objectType({
 var AiChatBody = objectType({
   "message": stringType().min(1),
   "context": stringType().nullish(),
-  "currentFile": stringType().nullish(),
-  "imageUrl": stringType().nullish()
+  "currentFile": stringType().nullish()
 });
 var AiChatResponse = objectType({
   "reply": stringType(),
@@ -56472,7 +56483,7 @@ router2.get("/projects/:id/preview", async (req, res) => {
         }
       }
       const readmeFile = fileMap.get("README.md") ?? fileMap.get("readme.md");
-      const readmeSnippet = readmeFile?.content ? readmeFile.content.slice(0, 800).replace(/</g, "&lt;").replace(/>/g, "&gt;") : null;
+      const readmeSnippet = readmeFile?.content ? readmeFile.content.slice(0, 800).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") : null;
       const esc2 = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
       const sortedFiles = files.sort((a, b) => a.name.localeCompare(b.name)).slice(0, 30);
       const fileRows = sortedFiles.map((f) => {
@@ -57699,15 +57710,20 @@ function upsertAction(files, filename, language, content) {
   const exists2 = files.some((file2) => file2.name === filename);
   return exists2 ? { type: "edit_file", filename, content } : { type: "create_file", filename, language, content };
 }
+function htmlEsc(s) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
 function buildFallbackHtml(cssName, jsName, mode) {
   const title = mode === "repair" ? "Repaired App" : "Upgraded App";
+  const safeCss = htmlEsc(cssName);
+  const safeJs = htmlEsc(jsName);
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>${title}</title>
-  <link rel="stylesheet" href="${cssName}" />
+  <link rel="stylesheet" href="${safeCss}" />
 </head>
 <body>
   <main class="shell">
@@ -57749,7 +57765,7 @@ function buildFallbackHtml(cssName, jsName, mode) {
   </main>
 
   <div id="toast" role="status" aria-live="polite"></div>
-  <script src="${jsName}"></script>
+  <script src="${safeJs}"></script>
 </body>
 </html>`;
 }

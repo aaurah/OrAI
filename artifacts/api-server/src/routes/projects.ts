@@ -205,7 +205,8 @@ router.get("/projects/:id/preview", async (req, res) => {
       // README content (first 800 chars)
       const readmeFile = fileMap.get("README.md") ?? fileMap.get("readme.md");
       const readmeSnippet = readmeFile?.content
-        ? readmeFile.content.slice(0, 800).replace(/</g, "&lt;").replace(/>/g, "&gt;")
+        ? readmeFile.content.slice(0, 800)
+            .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
         : null;
 
       // HTML-escape helper — prevents XSS when interpolating user data into HTML

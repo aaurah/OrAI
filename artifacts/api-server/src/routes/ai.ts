@@ -846,15 +846,21 @@ function upsertAction(
     : { type: "create_file", filename, language, content };
 }
 
+function htmlEsc(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
 function buildFallbackHtml(cssName: string, jsName: string, mode: "upgrade" | "repair"): string {
   const title = mode === "repair" ? "Repaired App" : "Upgraded App";
+  const safeCss = htmlEsc(cssName);
+  const safeJs  = htmlEsc(jsName);
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>${title}</title>
-  <link rel="stylesheet" href="${cssName}" />
+  <link rel="stylesheet" href="${safeCss}" />
 </head>
 <body>
   <main class="shell">
@@ -896,7 +902,7 @@ function buildFallbackHtml(cssName: string, jsName: string, mode: "upgrade" | "r
   </main>
 
   <div id="toast" role="status" aria-live="polite"></div>
-  <script src="${jsName}"></script>
+  <script src="${safeJs}"></script>
 </body>
 </html>`;
 }
