@@ -6,8 +6,11 @@ import { AiChatParams, AiChatBody } from "@workspace/api-zod";
 
 const router = Router();
 
-const OPENAI_BASE = process.env.OPENAI_API_BASE_URL || "https://api.openai.com/v1";
-const OPENAI_KEY  = process.env.OPENAI_API_KEY || "";
+const AI_BASE = process.env.OPENROUTER_OPENCODE_BASE_URL || process.env.OPENAI_API_BASE_URL || "https://api.openai.com/v1";
+const AI_KEY = process.env.API_KEY || process.env.OPENAI_API_KEY || "";
+const AI_MODEL = process.env.OPENROUTER_OPENCODE_BASE_URL
+  ? (process.env.AI_MODEL || "openai/gpt-4o-mini")
+  : (process.env.AI_MODEL || "gpt-4o");
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -25,6 +28,14 @@ type ExecutedAction =
 type AIResult = {
   reply: string;
   actions: FileAction[];
+};
+
+type ProjectFile = {
+  id: number;
+  name: string;
+  path?: string | null;
+  content?: string | null;
+  language?: string | null;
 };
 
 // ── Route ────────────────────────────────────────────────────────────
@@ -50,7 +61,7 @@ router.post("/projects/:id/ai/chat", async (req, res) => {
     }
 
     // Fetch current project files so the AI knows what exists
-    const existingFiles = await db
+    const rawFiles = await db
       .select({ 
         id: filesTable.id, 
         name: filesTable.name, 
@@ -61,10 +72,17 @@ router.post("/projects/:id/ai/chat", async (req, res) => {
       .from(filesTable)
       .where(eq(filesTable.projectId, projectId));
 
-    const fileList = existingFiles.map(f => `  - ${f.name} (id:${f.id})`).join("\n");
+    const existingFiles = dedupeFilesByName(rawFiles);
+    const sourceFiles = existingFiles.filter(file => !isProjectMetadataFile(file.name));
+    const metadataFiles = existingFiles.filter(file => isProjectMetadataFile(file.name));
+    const isSourceEmpty = sourceFiles.length === 0;
+
+    const fileList = (isSourceEmpty ? [] : sourceFiles).map(f => `  - ${f.name} (id:${f.id})`).join("\n");
+    const metadataFileList = metadataFiles.map(f => f.name).join(", ");
+    const projectContext = buildProjectSourceContext(sourceFiles);
 
     // Detect project type from file extensions
-    const fileNames = existingFiles.map(f => f.name);
+    const fileNames = sourceFiles.map(f => f.name);
     const isTS = fileNames.some(n => n.endsWith(".ts") || n.endsWith(".tsx"));
     const isPy = fileNames.some(n => n.endsWith(".py"));
     const isRust = fileNames.some(n => n.endsWith(".rs"));
@@ -81,9 +99,10 @@ Project type: ${projectType}${hasPkg ? " (Node.js / npm project)" : ""}
 ${isNonHtml ? `This is a ${projectType} source-code project — NOT an HTML web app. The preview tab shows a project overview panel, not a running server. You should help the user understand, navigate, and modify the codebase.` : ""}
 
 Current project files:
-${fileList || "  (no files yet)"}
-${currentFile ? `\nCurrently open file: ${currentFile}` : ""}
-${context ? `\nContent of open file:\n\`\`\`\n${context}\n\`\`\`` : ""}
+${fileList || "  (no app source files yet)"}
+${isSourceEmpty && metadataFileList ? `\nProject setup files present but ignored for app-generation decisions: ${metadataFileList}` : ""}
+${currentFile && !isProjectMetadataFile(currentFile) ? `\nCurrent focus file, if relevant: ${currentFile}` : ""}
+${projectContext ? `\nProject source context:\n${projectContext}` : ""}
 
 You MUST respond with a JSON object (no markdown wrapper) in this exact format:
 {
@@ -100,11 +119,14 @@ Rules:
 - For create_file: always provide the complete file content, never partial.
 - For edit_file: always provide the COMPLETE new file content (not a diff).
 - Use the exact filename from the file list when editing or deleting.
-- CRITICAL: If the project already has files, ALWAYS edit those existing files — NEVER create new ones unless the user explicitly says "start over", "rebuild from scratch", "new project", or "delete everything".
+- Work from the whole project context, not just the current focus file. If a request affects multiple files, return actions for every file that must change.
+- For app-building requests, create or edit the complete app surface: HTML, CSS, and JavaScript/TypeScript as needed.
+- CRITICAL: If the project already has APP SOURCE files listed above, ALWAYS edit those existing files — NEVER create new ones unless the user explicitly says "start over", "rebuild from scratch", "new project", or "delete everything".
+- Project setup files such as package.json, tsconfig.json, .gitignore, pnpm-workspace.yaml, and replit.md do NOT count as app source files. If only those files exist, treat the project as empty and create the requested app.
 - For ${projectType} projects: answer questions about the code, explain architecture, suggest improvements, or make requested edits.
 - "not working", "broken", "fix it", "make it work" are FIX requests — edit the relevant file to resolve the issue.
 - When user says "make X" or "add X" to an existing project, EDIT the existing files to add the feature.
-- When the user asks to "create", "build", "generate", or "make" something in an EMPTY project (no files listed above), produce working, complete code.
+- When the user asks to "create", "build", "generate", or "make" something in an EMPTY project (no app source files listed above), produce working, complete code.
 - When the user asks to "edit", "fix", "update", or "improve", edit the currently open file or the most relevant existing file.
 - When the user asks to "delete" or "remove" a file, use delete_file.
 - reply should be concise (1-3 sentences) describing what you did.
@@ -113,13 +135,13 @@ Rules:
     let aiResult: AIResult;
 
     // Log the request for debugging
-    console.log(`[AI Chat] Project: ${projectId}, Message: "${message}", Files: ${existingFiles.length}, OpenAI Key: ${OPENAI_KEY ? "✓" : "✗"}`);
+    console.log(`[AI Chat] Project: ${projectId}, Message: "${message}", Files: ${existingFiles.length}, Source files: ${sourceFiles.length}, AI Key: ${AI_KEY ? "✓" : "✗"}`);
 
-    if (!OPENAI_KEY) {
-      console.warn("[AI Chat] No OpenAI API key - using fallback with file creation");
-      aiResult = generateAgenticFallbackWithBuilds(message, existingFiles, currentFile ?? null);
+    if (!AI_KEY) {
+      console.warn("[AI Chat] No AI API key - using fallback with file creation");
+      aiResult = generateAgenticFallbackWithBuilds(message, sourceFiles, currentFile ?? null);
     } else {
-      aiResult = await callOpenAI(systemPrompt, message, imageUrl, existingFiles, currentFile ?? null);
+      aiResult = await callOpenAI(systemPrompt, message, imageUrl ?? undefined, sourceFiles, currentFile ?? null);
     }
 
     // ── Execute actions ──────────────────────────────────────────────────────
@@ -230,6 +252,78 @@ function inferLanguage(filename: string): string {
 }
 
 /**
+ * The IDE stores project setup files alongside user-created source files. Those
+ * config files should not make a fresh project look non-empty to the AI agent.
+ */
+function isProjectMetadataFile(filename: string): boolean {
+  const normalized = filename.replace(/^\//, "").toLowerCase();
+  const metadataFiles = new Set([
+    ".gitignore",
+    ".npmrc",
+    ".replit",
+    ".replitignore",
+    "components.json",
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    "pnpm-workspace.yaml",
+    "replit.md",
+    "tsconfig.json",
+    "tsconfig.base.json",
+    "vite.config.ts",
+    "vite.config.js",
+  ]);
+
+  return metadataFiles.has(normalized);
+}
+
+/**
+ * Keep the newest row for each file name so stale duplicates do not confuse the
+ * prompt or cause edits to target an old copy.
+ */
+function dedupeFilesByName<T extends ProjectFile>(files: T[]): T[] {
+  const byName = new Map<string, T>();
+  for (const file of files) {
+    const existing = byName.get(file.name);
+    if (!existing || file.id > existing.id) {
+      byName.set(file.name, file);
+    }
+  }
+  return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/**
+ * Include bounded whole-project context so the AI can modify a project instead
+ * of acting like only the currently selected editor file exists.
+ */
+function buildProjectSourceContext(files: ProjectFile[]): string {
+  const MAX_FILES = 30;
+  const MAX_CHARS_PER_FILE = 12_000;
+  const MAX_TOTAL_CHARS = 60_000;
+
+  let total = 0;
+  const chunks: string[] = [];
+
+  for (const file of files.slice(0, MAX_FILES)) {
+    const content = file.content ?? "";
+    const clipped = content.length > MAX_CHARS_PER_FILE
+      ? `${content.slice(0, MAX_CHARS_PER_FILE)}\n/* ...truncated... */`
+      : content;
+    const block = `\n--- ${file.name} ---\n\`\`\`${inferLanguage(file.name)}\n${clipped}\n\`\`\``;
+
+    if (total + block.length > MAX_TOTAL_CHARS) {
+      chunks.push(`\n--- context truncated: ${files.length - chunks.length} more file(s) not included ---`);
+      break;
+    }
+
+    chunks.push(block);
+    total += block.length;
+  }
+
+  return chunks.join("\n");
+}
+
+/**
  * Call OpenAI API with error handling and JSON validation
  */
 async function callOpenAI(
@@ -240,16 +334,22 @@ async function callOpenAI(
   currentFile: string | null,
 ): Promise<AIResult> {
   try {
-    console.log(`[OpenAI] Calling ${OPENAI_BASE}/chat/completions with gpt-4o`);
+    console.log(`[AI Provider] Calling ${AI_BASE}/chat/completions with ${AI_MODEL}`);
 
-    const response = await fetch(`${OPENAI_BASE}/chat/completions`, {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${AI_KEY}`,
+    };
+
+    if (process.env.VITE_APP_ID) {
+      headers["x-boxman-app-id"] = process.env.VITE_APP_ID;
+    }
+
+    const response = await fetch(`${AI_BASE}/chat/completions`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${OPENAI_KEY}`,
-      },
+      headers,
       body: JSON.stringify({
-        model: "gpt-4o",
+        model: AI_MODEL,
         messages: [
           { role: "system", content: systemPrompt },
           {
@@ -268,18 +368,18 @@ async function callOpenAI(
       }),
     });
 
-    console.log(`[OpenAI] Response status: ${response.status}`);
+    console.log(`[AI Provider] Response status: ${response.status}`);
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      console.error("[OpenAI Error]", response.status, JSON.stringify(errorData));
+      console.error("[AI Provider Error]", response.status, JSON.stringify(errorData));
       return generateAgenticFallbackWithBuilds(message, existingFiles, currentFile);
     }
 
     const data = (await response.json()) as { choices: Array<{ message: { content: string } }> };
     let raw = data.choices[0]?.message?.content ?? "{}";
     
-    console.log(`[OpenAI] Raw response (first 200 chars): ${raw.substring(0, 200)}`);
+    console.log(`[AI Provider] Raw response (first 200 chars): ${raw.substring(0, 200)}`);
     
     raw = raw.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
     
@@ -296,7 +396,7 @@ async function callOpenAI(
         parsed.actions = [];
       }
       
-      console.log(`[OpenAI] Valid response with ${parsed.actions.length} actions`);
+      console.log(`[AI Provider] Valid response with ${parsed.actions.length} actions`);
       
       return {
         reply: String(parsed.reply),
@@ -598,6 +698,22 @@ function calculate() {
 }`,
         },
       ],
+    };
+  }
+
+  // ── Audit / explain project fallback
+  if (msg.includes("audit") || msg.includes("review") || msg.includes("inspect")) {
+    if (existingFiles.length === 0) {
+      return {
+        reply: "I only see project setup files right now, no app source files yet. Ask me to create an app first, then I can audit the generated files.",
+        actions: [],
+      };
+    }
+
+    const names = existingFiles.map(file => file.name).join(", ");
+    return {
+      reply: `I found ${existingFiles.length} app file${existingFiles.length === 1 ? "" : "s"}: ${names}. Ask for a specific fix or improvement and I can edit the files directly.`,
+      actions: [],
     };
   }
 
