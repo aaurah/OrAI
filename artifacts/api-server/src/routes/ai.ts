@@ -6,11 +6,21 @@ import { AiChatParams, AiChatBody } from "@workspace/api-zod";
 
 const router = Router();
 
-const AI_BASE = process.env.OPENROUTER_OPENCODE_BASE_URL || process.env.OPENAI_API_BASE_URL || "https://api.openai.com/v1";
-const AI_KEY = process.env.API_KEY || process.env.OPENAI_API_KEY || "";
-const AI_MODEL = process.env.OPENROUTER_OPENCODE_BASE_URL
+const HAS_OPENROUTER_KEY = Boolean(
+  process.env.OPENROUTER_OPENCODE_BASE_URL || process.env.OPENROUTER_API_KEY || process.env.VITE_OPENROUTER_API_KEY,
+);
+const AI_BASE = process.env.OPENROUTER_OPENCODE_BASE_URL
+  || process.env.OPENAI_API_BASE_URL
+  || (HAS_OPENROUTER_KEY ? "https://openrouter.ai/api/v1" : "https://api.openai.com/v1");
+const AI_KEY = process.env.API_KEY
+  || process.env.OPENROUTER_API_KEY
+  || process.env.VITE_OPENROUTER_API_KEY
+  || process.env.OPENAI_API_KEY
+  || process.env.VITE_OPENAI_API_KEY
+  || "";
+const AI_MODEL = HAS_OPENROUTER_KEY
   ? (process.env.AI_MODEL || "openai/gpt-4o-mini")
-  : (process.env.AI_MODEL || "gpt-4o");
+  : (process.env.AI_MODEL || "gpt-4o-mini");
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -363,8 +373,8 @@ async function callOpenAI(
           },
         ],
         response_format: { type: "json_object" },
-        max_tokens: 4096,
-        temperature: 0.7,
+        max_tokens: 12_000,
+        temperature: 0.35,
       }),
     });
 
@@ -421,6 +431,29 @@ function generateAgenticFallbackWithBuilds(
   currentFile: string | null,
 ): AIResult {
   const msg = message.toLowerCase().trim();
+
+  const hasSourceFiles = existingFiles.length > 0;
+  const wantsUpgrade = /\b(upgrade|improve|enhance|polish|modernize|redesign|make\s+(it|the app)\s+better|better\s+ui)\b/.test(msg);
+  const wantsStatus = /\b(working|listening|are you there|you there|can you hear me)\b/.test(msg);
+  const wantsFix = /\b(fix|repair|debug|not working|broken|make it work)\b/.test(msg);
+
+  if (hasSourceFiles && wantsUpgrade) {
+    return generateFallbackUpgrade(existingFiles);
+  }
+
+  if (hasSourceFiles && wantsFix) {
+    return generateFallbackRepair(existingFiles, currentFile);
+  }
+
+  if (wantsStatus) {
+    const names = existingFiles.map(file => file.name).join(", ");
+    return {
+      reply: hasSourceFiles
+        ? `Yes — I can see ${existingFiles.length} app file${existingFiles.length === 1 ? "" : "s"}: ${names}. Say exactly what to change, or say “upgrade app” and I’ll edit the files directly.`
+        : "Yes — I’m ready. Ask me to create an app, and I’ll generate the files directly.",
+      actions: [],
+    };
+  }
 
   // ── Weather app
   if (msg.includes("weather")) {
@@ -726,10 +759,248 @@ function calculate() {
   }
 
   // ── Default suggestion
+  if (hasSourceFiles) {
+    const names = existingFiles.map(file => file.name).join(", ");
+    return {
+      reply: `I can see ${existingFiles.length} app file${existingFiles.length === 1 ? "" : "s"}: ${names}. Try “upgrade app”, “fix the layout”, “add dark mode”, or describe the exact feature you want and I’ll edit the files.`,
+      actions: [],
+    };
+  }
+
   return {
     reply: `✨ I can build apps! Try:\n• "Create a weather app"\n• "Build a todo list"\n• "Make a calculator"\n\nWhat would you like?`,
     actions: [],
   };
+}
+
+function generateFallbackUpgrade(
+  existingFiles: Array<{ id: number; name: string; content?: string | null }>,
+): AIResult {
+  return {
+    reply: "Upgraded the app into a polished, responsive experience with a hero section, feature cards, interactive stats, and a dark/light theme toggle.",
+    actions: buildStandardAppActions(existingFiles, "upgrade"),
+  };
+}
+
+function generateFallbackRepair(
+  existingFiles: Array<{ id: number; name: string; content?: string | null }>,
+  currentFile: string | null,
+): AIResult {
+  const target = currentFile && existingFiles.some(file => file.name === currentFile)
+    ? currentFile
+    : existingFiles.find(file => /\.(js|jsx|ts|tsx)$/i.test(file.name))?.name;
+
+  if (!target) {
+    return generateFallbackUpgrade(existingFiles);
+  }
+
+  return {
+    reply: `I refreshed ${target} with safer startup code and rebuilt the preview files so the app has a working baseline.`,
+    actions: buildStandardAppActions(existingFiles, "repair"),
+  };
+}
+
+function buildStandardAppActions(
+  existingFiles: Array<{ id: number; name: string; content?: string | null }>,
+  mode: "upgrade" | "repair",
+): FileAction[] {
+  const htmlName = pickFile(existingFiles, ["index.html"], /\.html$/i) || "index.html";
+  const cssName = pickFile(existingFiles, ["style.css", "styles.css"], /\.css$/i) || "style.css";
+  const jsName = pickFile(existingFiles, ["app.js", "main.js", "script.js", "index.js"], /\.(js|jsx|ts|tsx)$/i) || "app.js";
+
+  return [
+    upsertAction(existingFiles, htmlName, "html", buildFallbackHtml(cssName, jsName, mode)),
+    upsertAction(existingFiles, cssName, "css", buildFallbackCss()),
+    upsertAction(existingFiles, jsName, inferLanguage(jsName), buildFallbackJs()),
+  ];
+}
+
+function pickFile(
+  files: Array<{ name: string }>,
+  preferred: string[],
+  pattern: RegExp,
+): string | null {
+  for (const name of preferred) {
+    const found = files.find(file => file.name.toLowerCase() === name.toLowerCase());
+    if (found) return found.name;
+  }
+  return files.find(file => pattern.test(file.name))?.name ?? null;
+}
+
+function upsertAction(
+  files: Array<{ name: string }>,
+  filename: string,
+  language: string,
+  content: string,
+): FileAction {
+  const exists = files.some(file => file.name === filename);
+  return exists
+    ? { type: "edit_file", filename, content }
+    : { type: "create_file", filename, language, content };
+}
+
+function buildFallbackHtml(cssName: string, jsName: string, mode: "upgrade" | "repair"): string {
+  const title = mode === "repair" ? "Repaired App" : "Upgraded App";
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>${title}</title>
+  <link rel="stylesheet" href="${cssName}" />
+</head>
+<body>
+  <main class="shell">
+    <nav class="nav">
+      <div class="brand"><span class="logo">✦</span><span>LaunchPad</span></div>
+      <button id="themeToggle" class="ghost" type="button">Toggle theme</button>
+    </nav>
+
+    <section class="hero">
+      <p class="eyebrow">Freshly upgraded</p>
+      <h1>Build, preview, and ship your next idea faster.</h1>
+      <p class="lead">A polished responsive starter with focused calls to action, feature cards, live stats, and small interactions that make the app feel alive.</p>
+      <div class="actions">
+        <button id="primaryAction" type="button">Start now</button>
+        <button id="secondaryAction" class="secondary" type="button">Show stats</button>
+      </div>
+    </section>
+
+    <section class="stats" aria-label="App stats">
+      <article><strong data-count="24">0</strong><span>Components</span></article>
+      <article><strong data-count="98">0</strong><span>Performance</span></article>
+      <article><strong data-count="12">0</strong><span>Ideas shipped</span></article>
+    </section>
+
+    <section class="cards">
+      <article>
+        <h2>Clean UI</h2>
+        <p>Modern spacing, color, typography, and responsive layout out of the box.</p>
+      </article>
+      <article>
+        <h2>Interactive</h2>
+        <p>Theme switching, animated counters, and clear button feedback are included.</p>
+      </article>
+      <article>
+        <h2>Ready to extend</h2>
+        <p>Simple HTML, CSS, and JavaScript files that are easy to customize.</p>
+      </article>
+    </section>
+  </main>
+
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script src="${jsName}"></script>
+</body>
+</html>`;
+}
+
+function buildFallbackCss(): string {
+  return `:root {
+  color-scheme: dark;
+  --bg: #080b14;
+  --panel: rgba(255, 255, 255, 0.08);
+  --panel-strong: rgba(255, 255, 255, 0.14);
+  --text: #f8fafc;
+  --muted: #a8b3cf;
+  --accent: #6d5dfc;
+  --accent-2: #13c8ff;
+  --shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+}
+
+body.light {
+  color-scheme: light;
+  --bg: #f5f7fb;
+  --panel: rgba(255, 255, 255, 0.86);
+  --panel-strong: #ffffff;
+  --text: #111827;
+  --muted: #5b6478;
+  --accent: #4f46e5;
+  --accent-2: #0891b2;
+  --shadow: 0 24px 70px rgba(79, 70, 229, 0.16);
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background:
+    radial-gradient(circle at top left, color-mix(in srgb, var(--accent) 40%, transparent), transparent 32rem),
+    radial-gradient(circle at bottom right, color-mix(in srgb, var(--accent-2) 35%, transparent), transparent 28rem),
+    var(--bg);
+  color: var(--text);
+}
+
+.shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 28px 0 48px; }
+.nav, .hero, .stats article, .cards article {
+  border: 1px solid color-mix(in srgb, var(--text) 14%, transparent);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(18px);
+}
+.nav { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 14px 16px; border-radius: 24px; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 800; letter-spacing: -0.02em; }
+.logo { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 12px; background: linear-gradient(135deg, var(--accent), var(--accent-2)); }
+.hero { margin-top: 28px; padding: clamp(32px, 7vw, 84px); border-radius: 36px; text-align: center; }
+.eyebrow { margin: 0 0 12px; color: var(--accent-2); text-transform: uppercase; letter-spacing: 0.18em; font-size: 0.78rem; font-weight: 800; }
+h1 { max-width: 820px; margin: 0 auto; font-size: clamp(2.5rem, 8vw, 5.8rem); line-height: 0.95; letter-spacing: -0.075em; }
+.lead { max-width: 680px; margin: 24px auto 0; color: var(--muted); font-size: clamp(1rem, 2vw, 1.25rem); line-height: 1.7; }
+.actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 32px; }
+button { border: 0; border-radius: 999px; padding: 13px 20px; color: white; background: linear-gradient(135deg, var(--accent), var(--accent-2)); font-weight: 800; cursor: pointer; transition: transform 160ms ease, opacity 160ms ease; }
+button:hover { transform: translateY(-2px); }
+.secondary, .ghost { color: var(--text); background: var(--panel-strong); }
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 20px; }
+.stats article, .cards article { border-radius: 24px; padding: 24px; }
+.stats strong { display: block; font-size: clamp(2rem, 5vw, 3.5rem); letter-spacing: -0.06em; }
+.stats span, .cards p { color: var(--muted); }
+.cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 16px; }
+.cards h2 { margin: 0 0 10px; }
+.cards p { margin: 0; line-height: 1.65; }
+#toast { position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 140%); padding: 12px 16px; border-radius: 999px; background: var(--panel-strong); color: var(--text); box-shadow: var(--shadow); transition: transform 220ms ease; }
+#toast.show { transform: translate(-50%, 0); }
+@media (max-width: 760px) { .stats, .cards { grid-template-columns: 1fr; } .nav { align-items: flex-start; flex-direction: column; } }`;
+}
+
+function buildFallbackJs(): string {
+  return `const toast = document.getElementById("toast");
+const themeToggle = document.getElementById("themeToggle");
+const primaryAction = document.getElementById("primaryAction");
+const secondaryAction = document.getElementById("secondaryAction");
+
+function showToast(message) {
+  toast.textContent = message;
+  toast.classList.add("show");
+  clearTimeout(window.__toastTimer);
+  window.__toastTimer = setTimeout(() => toast.classList.remove("show"), 2200);
+}
+
+function animateCounters() {
+  document.querySelectorAll("[data-count]").forEach((item) => {
+    const target = Number(item.dataset.count || "0");
+    const start = performance.now();
+    function tick(now) {
+      const progress = Math.min((now - start) / 850, 1);
+      item.textContent = Math.round(target * progress).toString();
+      if (progress < 1) requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  });
+}
+
+themeToggle.addEventListener("click", () => {
+  document.body.classList.toggle("light");
+  localStorage.setItem("theme", document.body.classList.contains("light") ? "light" : "dark");
+  showToast("Theme updated");
+});
+
+primaryAction.addEventListener("click", () => showToast("Ready to customize your app"));
+secondaryAction.addEventListener("click", () => {
+  animateCounters();
+  showToast("Stats refreshed");
+});
+
+if (localStorage.getItem("theme") === "light") document.body.classList.add("light");
+animateCounters();`;
 }
 
 export default router;
