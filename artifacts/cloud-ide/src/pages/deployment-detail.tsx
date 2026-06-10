@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams } from "wouter";
+import { useParams, useLocation } from "wouter";
 import {
   ArrowLeft, Globe, Plus, Trash2, Edit2, ExternalLink,
   Check, X, Copy, MonitorPlay, Wifi, AlertTriangle,
@@ -16,8 +16,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
+  AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
   useGetDeployment,
   useUpdateDeployment,
+  useDeleteDeployment,
   useListDnsRecords,
   useCreateDnsRecord,
   useUpdateDnsRecord,
@@ -25,6 +31,7 @@ import {
   useVerifyDomain,
   getGetDeploymentQueryKey,
   getListDnsRecordsQueryKey,
+  getListAllDeploymentsQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -152,14 +159,25 @@ export default function DeploymentDetail() {
   const params = useParams<{ id: string }>();
   const id = Number(params.id);
   const queryClient = useQueryClient();
+  const [, navigate] = useLocation();
 
   const { data: deployment, isLoading: deployLoading } = useGetDeployment(id);
   const { data: dnsRecords, isLoading: dnsLoading } = useListDnsRecords(id);
-  const updateDeploy = useUpdateDeployment();
-  const createDns    = useCreateDnsRecord();
-  const updateDns    = useUpdateDnsRecord();
-  const deleteDns    = useDeleteDnsRecord();
-  const verifyDomain = useVerifyDomain();
+  const updateDeploy    = useUpdateDeployment();
+  const deleteDeployment = useDeleteDeployment();
+  const createDns       = useCreateDnsRecord();
+  const updateDns       = useUpdateDnsRecord();
+  const deleteDns       = useDeleteDnsRecord();
+  const verifyDomain    = useVerifyDomain();
+
+  function handleDeleteDeployment() {
+    deleteDeployment.mutate({ id }, {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListAllDeploymentsQueryKey() });
+        navigate("/deployments");
+      },
+    });
+  }
 
   // Domain wizard state
   const [wizardStep, setWizardStep] = useState<1 | 2 | 3>(1);
@@ -773,6 +791,59 @@ export default function DeploymentDetail() {
                 </table>
               </div>
             )}
+          </CardContent>
+        </Card>
+
+        {/* Danger Zone */}
+        <Card className="border-destructive/40 bg-destructive/5">
+          <CardHeader>
+            <CardTitle className="text-base text-destructive flex items-center gap-2">
+              <AlertTriangle size={15} /> Danger Zone
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div>
+                <p className="text-sm font-medium">Delete this deployment</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Permanently removes this deployment and all its DNS records. This cannot be undone.
+                </p>
+              </div>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="gap-2 shrink-0"
+                    disabled={deleteDeployment.isPending}
+                  >
+                    {deleteDeployment.isPending
+                      ? <Loader2 size={13} className="animate-spin" />
+                      : <Trash2 size={13} />}
+                    Delete Deployment
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete deployment #{id}?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will permanently delete this deployment
+                      {deployment?.projectName ? ` for "${deployment.projectName}"` : ""} and all
+                      associated DNS records. This action cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      onClick={handleDeleteDeployment}
+                    >
+                      Delete Deployment
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
           </CardContent>
         </Card>
 

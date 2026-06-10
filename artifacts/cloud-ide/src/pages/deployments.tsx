@@ -1,12 +1,18 @@
 import { Layout } from "@/components/layout";
-import { useListAllDeployments } from "@workspace/api-client-react";
+import { useListAllDeployments, useDeleteDeployment, getListAllDeploymentsQueryKey } from "@workspace/api-client-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ExternalLink, Rocket, AlertCircle } from "lucide-react";
+import { ExternalLink, Rocket, AlertCircle, Trash2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
+  AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { useQueryClient } from "@tanstack/react-query";
 
 function DeploymentStatusBadge({ status }: { status: string }) {
   switch (status) {
@@ -25,6 +31,14 @@ function DeploymentStatusBadge({ status }: { status: string }) {
 
 export default function Deployments() {
   const { data: deployments, isLoading, error } = useListAllDeployments();
+  const deleteDeployment = useDeleteDeployment();
+  const queryClient = useQueryClient();
+
+  function handleDelete(id: number) {
+    deleteDeployment.mutate({ id }, {
+      onSuccess: () => queryClient.invalidateQueries({ queryKey: getListAllDeploymentsQueryKey() }),
+    });
+  }
 
   return (
     <Layout>
@@ -105,9 +119,42 @@ export default function Deployments() {
                           {deployment.region || 'auto'}
                         </TableCell>
                         <TableCell className="text-right">
-                          <Link href={`/deployments/${deployment.id}`}>
-                            <Button variant="secondary" size="sm">Manage</Button>
-                          </Link>
+                          <div className="flex items-center justify-end gap-2">
+                            <Link href={`/deployments/${deployment.id}`}>
+                              <Button variant="secondary" size="sm">Manage</Button>
+                            </Link>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                  disabled={deleteDeployment.isPending}
+                                >
+                                  <Trash2 size={14} />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Delete deployment?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    This will permanently remove deployment #{deployment.id}
+                                    {deployment.projectName ? ` for "${deployment.projectName}"` : ""}.
+                                    This action cannot be undone.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                    onClick={() => handleDelete(deployment.id)}
+                                  >
+                                    Delete
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
